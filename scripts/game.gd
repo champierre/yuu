@@ -12,7 +12,7 @@ const STAGE_SCENES := {
 	2: "res://scenes/stage2.tscn",
 }
 ## 最後のステージ番号。クリア後に「次へ」を出すか「もう一度」を出すかの判断に使う。
-const STAGE_MAX := 1
+const STAGE_MAX := 2
 
 ## Scratch 変数
 var scene_no: int = 1        ## ステージの中の場面番号（1 始まり）
