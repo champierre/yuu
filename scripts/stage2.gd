@@ -9,6 +9,7 @@ const COL_BRIDGE := Color("#9e6a3f")  ## 橋
 const COL_ROPE := Color("#8c6b47")    ## 紐
 const COL_TARGET := Color("#bb3023")  ## 的
 const COL_BOW := Color("#66421f")     ## 弓
+const COL_PILLAR := Color("#66421f")  ## 柱
 const COL_ARROW := Color("#555555")   ## 矢
 const COL_GOAL := Color("#000000")    ## 目標
 const COL_DONE := Color("#3f9e44")    ## 達成
@@ -48,6 +49,7 @@ const BRIDGE_GROUND_Y := 0.0
 @onready var rope: KanjiSprite = $Rope
 @onready var target: KanjiSprite = $Target
 @onready var bow: KanjiSprite = $Bow
+@onready var pillar: KanjiSprite = $Pillar
 @onready var goal: KanjiSprite = $Goal
 @onready var soil: Node2D = $Soil
 
@@ -84,6 +86,7 @@ func _setup_colors() -> void:
 	rope.text = "紐";     rope.color = COL_ROPE
 	target.text = "的";   target.color = COL_TARGET
 	bow.text = "弓";      bow.color = COL_BOW
+	pillar.text = "柱";   pillar.color = COL_PILLAR
 	goal.text = "目標";   goal.color = COL_GOAL
 
 ## 場面を組む前に、全部の見た目を素の状態に戻す。
@@ -91,7 +94,7 @@ func _setup_colors() -> void:
 ## 書き漏らすと前の場面の状態が残る作りだった。ここでは先に一度戻しておき、
 ## 各場面は「使うものだけ」を書けばよいようにしている。
 func _reset_all_sprites() -> void:
-	for s in [bridge, rope, target, bow, goal, hero]:
+	for s in [bridge, rope, target, bow, pillar, goal, hero]:
 		s.visible = false
 		s.scale = Vector2.ONE
 		s.rotation = 0.0
@@ -120,9 +123,15 @@ func start_scene1() -> void:
 	bridge.visible = true
 	bridge.set_scratch_pos(0, 70)
 
-	## 橋を吊っている紐。これに触れると、見上げる場面（シーン 2）へ。
+	## 橋を吊っている紐。川の向こうの高い所にあり、ここからは届かない。
 	rope.visible = true
 	rope.set_scratch_pos(0, 30)
+
+	## 紐を支えている柱の根元は、川のこちら側まで伸びている。
+	## 勇者が渡れるのはここまでなので、進むきっかけはこの柱に触れること。
+	pillar.visible = true
+	pillar.vertical = true
+	pillar.set_scratch_pos(0, -20)
 
 	## 練習用の的。弓を取ったあと、ここで一度射って操作を覚えられる。
 	target.visible = true
@@ -263,10 +272,11 @@ func _process_scene1() -> void:
 		_practice_shot()
 		return
 
-	## 紐に触れたら、見上げる場面へ。
+	## 柱に触れたら、紐を見上げる場面へ。
+	## 紐そのものは川の向こうの高い所にあって触れないので、
+	## 手前まで伸びている柱の根元を目印にしている。
 	## ただし弓が無いと射てず、あちらで何も起きなくなってしまうので通さない。
-	## 代わりに何が足りないかを伝える。
-	if hero.touching(rope):
+	if hero.touching(pillar):
 		if Game.got_bow:
 			start_scene2()
 		else:
