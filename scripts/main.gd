@@ -20,13 +20,8 @@ const SWING_START_X := 26.0
 const SWING_HIT_X := -20.0
 ## 振っている間の高さ（勇者の肩の高さで水平に薙ぐ）。
 const SWING_Y := -10.0
-## クリア演出で飛び散る漢字と、その色。
-const BURST_CHARS := ["祝", "勝", "光", "花", "喜", "星", "楽"]
-const BURST_COLORS := [
-	Color("#e0b020"), Color("#3f9e44"), Color("#bb3023"), Color("#003cff"),
-]
-
 ## 加速のしかた。等速だと機械的なので、場面ごとに緩急をつける。
+## 値は Effects.ease_k に渡すので、あちらの enum と並び順を合わせてある。
 enum { EASE_IN, EASE_OUT }
 
 ## この速さ (px/秒) で歪みが最大になる。
@@ -56,6 +51,7 @@ var _trail := false         ## 振り抜き中だけ残像を出す
 var _axe_prev_x := 0.0      ## 歪みの計算用。直前のフレームの斧の x
 var _finished := false      ## クリア後は完全に停止する
 var _can_restart := false   ## クリア後、やり直しを受け付けるか
+var _can_advance := false   ## クリア後、次のステージへ進むのを受け付けるか
 var _restart_hint: KanjiSprite  ## 「もう一度」の案内
 
 func _ready() -> void:
@@ -316,9 +312,7 @@ func _swing_axe(x1: float, x2: float, dur: float, ease_type: int) -> void:
 	while t < dur:
 		t += get_process_delta_time()
 		var k: float = clampf(t / dur, 0.0, 1.0)
-		## ease_in は「静→急」、ease_out は「急→静」。
-		var e := k * k * k if ease_type == EASE_IN else 1.0 - pow(1.0 - k, 3.0)
-		_place_swinging_axe(lerpf(x1, x2, e))
+		_place_swinging_axe(lerpf(x1, x2, Effects.ease_k(k, ease_type)))
 		await get_tree().process_frame
 	_place_swinging_axe(x2)
 
@@ -336,28 +330,7 @@ func _place_swinging_axe(x: float) -> void:
 	axe.scale = Vector2(1.0 + k * AXE_STRETCH, 1.0 - k * AXE_SQUASH)
 
 	if _trail:
-		_leave_trail()
-
-## 通った跡に、歪んだ「斧」を薄く置いてすぐ消す。水平の軌跡に見える。
-func _leave_trail() -> void:
-	var t := KanjiSprite.new()
-	t.text = "斧"
-	t.color = COL_AXE
-	add_child(t)
-	t.position = axe.position
-	t.scale = axe.scale
-	t.modulate.a = 0.35
-	_fade_trail(t)
-
-## 残像を薄くしながら消す。
-func _fade_trail(t: KanjiSprite) -> void:
-	var life := 0.18
-	var e := 0.0
-	while e < life:
-		e += get_process_delta_time()
-		t.modulate.a = clampf(1.0 - e / life, 0.0, 1.0)
-		await get_tree().process_frame
-	t.queue_free()
+		Effects.leave_trail(self, axe)
 
 ## 木木木 が揺れて倒れ、シーン 3 へ。
 func _fell_tree() -> void:
@@ -385,87 +358,22 @@ func _finish() -> void:
 	goal.text = "達成"
 	goal.color = COL_DONE
 	goal.z_index = 10
-	await _pop_in(goal, 0.45)
+	await Effects.pop_in(goal, 0.45)
 
 	## 3. 「達成」から漢字が四方に弾ける。
-	_burst()
+	Effects.burst(self, goal.position)
 
 	## 4. 勇者が喜んで飛び跳ねる。
-	await _hero_cheer()
+	await Effects.cheer(hero)
 
 	## 5. 最後に大きく「祝」を出す。
-	await _show_banner()
+	await Effects.show_banner(self, "祝", COL_DONE)
 
-	## 6. もう一度遊べるように案内を出す。
-	_show_restart_hint()
-
-## ゼロから勢いよく拡大し、行き過ぎてから戻る（弾む拡大）。
-func _pop_in(node: Node2D, dur: float) -> void:
-	node.scale = Vector2.ZERO
-	var t := 0.0
-	while t < dur:
-		t += get_process_delta_time()
-		var k: float = clampf(t / dur, 0.0, 1.0)
-		## 一度 1.0 を超えてから戻ることで「ぼよん」と弾ませる。
-		var e := 1.0 - pow(1.0 - k, 3.0)
-		var overshoot := sin(k * PI) * 0.45
-		node.scale = Vector2.ONE * (e + overshoot)
-		await get_tree().process_frame
-	node.scale = Vector2.ONE
-
-## 「達成」を中心に漢字が飛び散る。
-func _burst() -> void:
-	for i in BURST_CHARS.size():
-		var p := KanjiSprite.new()
-		p.text = BURST_CHARS[i]
-		p.color = BURST_COLORS[i % BURST_COLORS.size()]
-		p.z_index = 9
-		add_child(p)
-		p.position = goal.position
-		## 放射状に飛ばす。
-		var ang := TAU * float(i) / float(BURST_CHARS.size())
-		_fly_particle(p, Vector2.RIGHT.rotated(ang) * randf_range(70.0, 130.0))
-
-## 破片を飛ばして、減速しながら落として消す。
-func _fly_particle(p: KanjiSprite, vel: Vector2) -> void:
-	var v := vel
-	var life := 1.4
-	var t := 0.0
-	while t < life:
-		var d := get_process_delta_time()
-		t += d
-		p.position += v * d
-		v.y += 260.0 * d      ## 重力で落ちる
-		v *= 0.985            ## 空気抵抗で減速
-		p.rotation += d * 3.0
-		p.scale = Vector2.ONE * clampf(1.0 - t / life, 0.0, 1.0)
-		await get_tree().process_frame
-	p.queue_free()
-
-## 勇者がその場で 2 回跳ねて喜ぶ。
-func _hero_cheer() -> void:
-	var base := hero.position
-	for jump in 2:
-		var dur := 0.34
-		var t := 0.0
-		while t < dur:
-			t += get_process_delta_time()
-			var k: float = clampf(t / dur, 0.0, 1.0)
-			## 放物線を描いて上がって下りる。
-			hero.position.y = base.y - sin(k * PI) * 26.0
-			await get_tree().process_frame
-		hero.position = base
-
-## 画面中央に「祝」を大きく出す。
-func _show_banner() -> void:
-	var banner := KanjiSprite.new()
-	banner.text = "祝"
-	banner.color = COL_DONE
-	banner.font_size = 64
-	banner.z_index = 11
-	add_child(banner)
-	banner.set_scratch_pos(0, 40)
-	await _pop_in(banner, 0.5)
+	## 6. 次のステージがあればそちらへ誘い、無ければもう一度遊べるようにする。
+	if Game.stage_no < Game.STAGE_MAX:
+		_show_next_stage_hint()
+	else:
+		_show_restart_hint()
 
 ## クリア後の「もう一度」案内。点滅させ、スペースかクリックで最初から始める。
 func _show_restart_hint() -> void:
@@ -482,13 +390,24 @@ func _show_restart_hint() -> void:
 	_can_restart = true
 	_blink_restart_hint()
 
-## 案内をゆっくり点滅させる。やり直したら止まる。
+## クリア後の「次のステージへ」案内。_show_restart_hint と同じ作りで文言だけ違う。
+func _show_next_stage_hint() -> void:
+	_restart_hint = KanjiSprite.new()
+	_restart_hint.text = "スペースキーで次のステージへ"
+	_restart_hint.color = COL_SUB
+	_restart_hint.font_size = 16
+	_restart_hint.z_index = 11
+	add_child(_restart_hint)
+	_restart_hint.set_scratch_pos(0, -60)
+
+	## この瞬間に押していたキーを拾わないよう、少し待ってから受け付ける。
+	await get_tree().create_timer(0.5).timeout
+	_can_advance = true
+	_blink_restart_hint()
+
+## 案内をゆっくり点滅させる。やり直すか次へ進んだら止まる。
 func _blink_restart_hint() -> void:
-	var t := 0.0
-	while _can_restart and is_instance_valid(_restart_hint):
-		t = fmod(t + get_process_delta_time(), 1.2)
-		_restart_hint.modulate.a = 0.35 + 0.65 * (0.5 + 0.5 * sin(t * PI * 2.0 - PI * 0.5))
-		await get_tree().process_frame
+	Effects.blink(_restart_hint, func(): return _can_restart or _can_advance)
 
 ## 最初からやり直す。Game の変数も戻すので、斧を持っていない状態から始まる。
 func _restart() -> void:
@@ -500,12 +419,26 @@ func _restart() -> void:
 	## 本編のシーンを名指しで読み直す。
 	get_tree().change_scene_to_file("res://scenes/main.tscn")
 
+## 次のステージへ進む。持ち物はここで捨てられる（reset_stage）。
+func _advance_stage() -> void:
+	if not _can_advance:
+		return
+	_can_advance = false
+	Game.goto_stage(get_tree(), Game.stage_no + 1)
+
+## クリア後の決定キー。次へ進めるならそちらを、無ければやり直しを行う。
+func _confirm() -> void:
+	if _can_advance:
+		_advance_stage()
+	elif _can_restart:
+		_restart()
+
 func _unhandled_input(event: InputEvent) -> void:
-	if not _can_restart:
+	if not _can_restart and not _can_advance:
 		return
 	if event is InputEventMouseButton and event.pressed:
-		_restart()
+		_confirm()
 	elif event is InputEventKey and event.pressed and not event.echo:
 		if event.keycode == KEY_SPACE or event.keycode == KEY_ENTER \
 				or event.keycode == KEY_KP_ENTER:
-			_restart()
+			_confirm()

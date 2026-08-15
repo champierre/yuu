@@ -82,17 +82,10 @@ func _add_cast() -> void:
 		s.set_scratch_pos(x + w * 0.5, -30)
 		x += w + GAP
 
-## 案内をゆっくり点滅させる。
-## シーン切り替えで自分ごと解放されるため、毎回 _hint の生存を確かめてから触る。
+## 案内をゆっくり点滅させる。始まったら止まる。
+## シーン切り替えで自分ごと解放されるので、生存確認は Effects.blink 側で行う。
 func _blink() -> void:
-	var t := 0.0
-	while not _started and is_instance_valid(_hint):
-		t = fmod(t + get_process_delta_time(), 1.2)
-		## sin で滑らかに明滅させる。
-		_hint.modulate.a = 0.35 + 0.65 * (0.5 + 0.5 * sin(t * PI * 2.0 - PI * 0.5))
-		await get_tree().process_frame
-	if is_instance_valid(_hint):
-		_hint.modulate.a = 1.0
+	Effects.blink(_hint, func(): return not _started)
 
 func _process(_delta: float) -> void:
 	if _started:
