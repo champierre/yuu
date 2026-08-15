@@ -1,0 +1,9 @@
+# Godot 4 が生成するインポートキャッシュ（再生成されるので含めない）
+.godot/
+*.translation
+
+# エクスポート先（GitHub Actions で生成するので含めない）
+/build/
+
+# macOS
+.DS_Store

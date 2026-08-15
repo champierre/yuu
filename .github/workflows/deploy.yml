@@ -1,0 +1,53 @@
+name: Deploy to GitHub Pages
+
+# main に push するたびに Web 版を書き出して公開する。
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# 同時実行を1つに絞る（古いデプロイが新しいものを上書きしないように）。
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+env:
+  GODOT_VERSION: 4.7.1
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container:
+      image: barichello/godot-ci:4.7.1
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: エクスポートテンプレートを配置
+        run: |
+          mkdir -p ~/.local/share/godot/export_templates
+          mv /root/.local/share/godot/export_templates/${GODOT_VERSION}.stable \
+             ~/.local/share/godot/export_templates/${GODOT_VERSION}.stable
+
+      - name: Web 版を書き出し
+        run: |
+          mkdir -p build/web
+          godot --headless --verbose --export-release "Web" build/web/index.html
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: build/web
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
