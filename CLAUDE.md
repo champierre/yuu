@@ -124,6 +124,32 @@ godot --headless --script path/to/test.gd
   1 秒待ったつもりが一瞬しか経っていない
 - 破片などの短命なノードを数えるときは、消える前（演出の途中）に数える
 
+### 座標を書き込むテストだけでは足りない
+
+`set_scratch_pos()` で勇者を目的地に置くテストは、**川や画面端を飛び越えてしまう**。
+それだと「そもそもそこへ行けるのか」を確かめられない。
+
+実際にステージ2 では、紐を川の向こう側に置いていたため
+勇者が永久に届かず、クリア不可能な状態になっていた。
+座標を書き込むテストは全て通っていたので気づけなかった。
+
+**新しい場面を作ったら、キーで歩いて通しでクリアできることを必ず確かめる。**
+
+```gdscript
+## 1 フレームだけキーを押す。これを繰り返して歩かせる
+func _step(code: int) -> void:
+	_key(code, true); await process_frame; _key(code, false); await process_frame
+
+## 目的地へ向かう。行き過ぎないよう、近づいたら止める
+for i in 400:
+	if hero.touching(goal): break
+	if hero.scratch_pos().x < target_x: await _step(KEY_RIGHT)
+	await process_frame
+```
+
+「一定時間押しっぱなし」だと画面端まで行き過ぎるので、
+**毎フレーム位置を見て、目的地を過ぎたら止める**書き方にする。
+
 書き出しの確認:
 
 ```sh
