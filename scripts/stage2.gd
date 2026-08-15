@@ -55,6 +55,8 @@ var _busy := false          ## 演出中は入力を無視する
 var _finished := false      ## クリア後は完全に停止する
 var _can_restart := false   ## クリア後、やり直しを受け付けるか
 var _restart_hint: KanjiSprite
+var _telling := false       ## 促しを出している最中か
+var _scene2_hint: KanjiSprite  ## シーン2 の操作案内
 
 func _ready() -> void:
 	## Game.reset() は stage_no を 1 に戻してしまうのでここでは呼ばない。
@@ -175,6 +177,22 @@ func start_scene2() -> void:
 	## 目標はこの場面では見えない。
 	goal.visible = false
 
+	## 何をすればよいかを出す。
+	## 矢が真上に飛ぶことは画面から読み取れないので、言葉で伝える。
+	_show_scene2_hint()
+
+## シーン2 の操作案内。場面を組み直すたびに作り直す。
+func _show_scene2_hint() -> void:
+	if is_instance_valid(_scene2_hint):
+		_scene2_hint.queue_free()
+	_scene2_hint = KanjiSprite.new()
+	_scene2_hint.text = "紐の真下でスペース"
+	_scene2_hint.color = COL_SUB
+	_scene2_hint.font_size = 14
+	_scene2_hint.z_index = 11
+	add_child(_scene2_hint)
+	_scene2_hint.set_scratch_pos(0, -120)
+
 ## 地面の「土」を並べる。川 (x=-8) の左右に隙間を空ける。
 func _draw_soil() -> void:
 	_clear_soil()
@@ -246,8 +264,13 @@ func _process_scene1() -> void:
 		return
 
 	## 紐に触れたら、見上げる場面へ。
+	## ただし弓が無いと射てず、あちらで何も起きなくなってしまうので通さない。
+	## 代わりに何が足りないかを伝える。
 	if hero.touching(rope):
-		start_scene2()
+		if Game.got_bow:
+			start_scene2()
+		else:
+			_tell_need_bow()
 
 func _process_scene2() -> void:
 	_follow_bow()
@@ -268,6 +291,24 @@ func _on_hero_reached_right_edge() -> void:
 		return
 	if Game.scene_no == 2:
 		start_scene1()
+
+## 弓を持たずに紐へ来たときの促し。
+## 一度出したらしばらく出さない（毎フレーム作られてしまうため）。
+func _tell_need_bow() -> void:
+	if _telling:
+		return
+	_telling = true
+	var t := KanjiSprite.new()
+	t.text = "弓が要る"
+	t.color = COL_SUB
+	t.font_size = 18
+	t.z_index = 11
+	add_child(t)
+	t.set_scratch_pos(0, -20)
+	await Effects.pop_in(t, 0.3)
+	await get_tree().create_timer(1.2).timeout
+	await Effects.fade_trail(t, 0.4)
+	_telling = false
 
 ## 弓に重なってスペースを押したら手に入れる。
 func _try_take_bow() -> void:
