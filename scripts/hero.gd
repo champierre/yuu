@@ -20,23 +20,32 @@ func _process(_delta: float) -> void:
 	else:
 		_move_normal()
 
-## シネマモードでない通常の移動。画面端 (±230) と川で止まる。
+## 画面の内側にとどまれる範囲（Scratch 座標での中心位置の限界）。
+## 文字の幅・高さの半分だけ内側に寄せて、絵が画面からはみ出さないようにする。
+func _limit_x() -> float:
+	return Game.STAGE_W * 0.5 - rect().size.x * 0.5
+
+func _limit_y() -> float:
+	return Game.STAGE_H * 0.5 - rect().size.y * 0.5
+
+## シネマモードでない通常の移動。画面の四辺と川で止まる。
 func _move_normal() -> void:
 	if Input.is_action_pressed("ui_right"):
 		position.x += SPEED
-		if _touching_river() or scratch_pos().x > 230.0:
+		if _touching_river() or scratch_pos().x > _limit_x():
 			position.x -= SPEED
 	if Input.is_action_pressed("ui_left"):
 		position.x -= SPEED
-		if _touching_river() or scratch_pos().x < -230.0:
+		if _touching_river() or scratch_pos().x < -_limit_x():
 			position.x += SPEED
+	## 上下も画面の外へ出ないように止める（+y が上）。
 	if Input.is_action_pressed("ui_down"):
 		position.y += SPEED
-		if _touching_river():
+		if _touching_river() or scratch_pos().y < -_limit_y():
 			position.y -= SPEED
 	if Input.is_action_pressed("ui_up"):
 		position.y -= SPEED
-		if _touching_river():
+		if _touching_river() or scratch_pos().y > _limit_y():
 			position.y += SPEED
 
 ## シネマモード中は左右のみ。右端を越えると次のシーンへ。
@@ -47,8 +56,10 @@ func _move_cinema() -> void:
 			position.x -= SPEED
 	if Input.is_action_pressed("ui_left"):
 		position.x -= SPEED
-		if _touching_river():
+		## 左端では画面外に出ないように止める。
+		if _touching_river() or scratch_pos().x < -_limit_x():
 			position.x += SPEED
+	## 右端まで歩いたら次の場面へ（ここは止めずに通す）。
 	if scratch_pos().x > 230.0:
 		reached_right_edge.emit()
 

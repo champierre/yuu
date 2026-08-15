@@ -39,7 +39,7 @@ func _build() -> void:
 
 	## 操作説明。
 	var keys := KanjiSprite.new()
-	keys.text = "↑↓←→ で移動　スペースで調べる・切る"
+	keys.text = "↑↓←→ で移動　スペースで調べる・アクション"
 	keys.color = COL_SUB
 	keys.font_size = 14
 	add_child(keys)
@@ -83,21 +83,25 @@ func _add_cast() -> void:
 		x += w + GAP
 
 ## 案内をゆっくり点滅させる。
+## シーン切り替えで自分ごと解放されるため、毎回 _hint の生存を確かめてから触る。
 func _blink() -> void:
-	while not _started:
-		var t := 0.0
-		while t < 1.2:
-			t += get_process_delta_time()
-			## sin で滑らかに明滅させる。
-			_hint.modulate.a = 0.35 + 0.65 * (0.5 + 0.5 * sin(t * PI * 2.0 - PI * 0.5))
-			await get_tree().process_frame
-	_hint.modulate.a = 1.0
+	var t := 0.0
+	while not _started and is_instance_valid(_hint):
+		t = fmod(t + get_process_delta_time(), 1.2)
+		## sin で滑らかに明滅させる。
+		_hint.modulate.a = 0.35 + 0.65 * (0.5 + 0.5 * sin(t * PI * 2.0 - PI * 0.5))
+		await get_tree().process_frame
+	if is_instance_valid(_hint):
+		_hint.modulate.a = 1.0
 
 func _process(_delta: float) -> void:
 	if _started:
 		return
 	## スペースのほか、Enter やクリックでも始められるようにする。
-	if Input.is_action_pressed("ui_accept") or Input.is_action_pressed("ui_select"):
+	## Web 版では入力割り当てが無いと ui_accept が反応しないことがあるので、
+	## キーコードも直接見る。
+	if Input.is_action_pressed("ui_accept") or Input.is_action_pressed("ui_select") \
+			or Input.is_key_pressed(KEY_SPACE) or Input.is_key_pressed(KEY_ENTER):
 		_start()
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -105,8 +109,16 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if event is InputEventMouseButton and event.pressed:
 		_start()
+	elif event is InputEventKey and event.pressed and not event.echo:
+		if event.keycode == KEY_SPACE or event.keycode == KEY_ENTER \
+				or event.keycode == KEY_KP_ENTER:
+			_start()
 
 ## 本編へ移る。
 func _start() -> void:
+	if _started:
+		return
 	_started = true
+	## 解放されたあとに点滅ループが _hint を触らないよう、先に処理を止める。
+	set_process(false)
 	get_tree().change_scene_to_file("res://scenes/main.tscn")

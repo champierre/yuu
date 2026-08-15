@@ -9,6 +9,7 @@ const COL_CUT := Color("#ff7729")    ## 切
 const COL_SOIL := Color("#6a302a")   ## 土
 const COL_GOAL := Color("#000000")   ## 目標
 const COL_DONE := Color("#3f9e44")   ## 達成
+const COL_SUB := Color("#555555")    ## 案内文字
 
 ## 斧を構える位置（勇者から見て右上）。
 const AXE_OFFSET := Vector2(16, -16)
@@ -20,7 +21,7 @@ const SWING_HIT_X := -20.0
 ## 振っている間の高さ（勇者の肩の高さで水平に薙ぐ）。
 const SWING_Y := -10.0
 ## クリア演出で飛び散る漢字と、その色。
-const BURST_CHARS := ["祝", "勝", "光", "花", "喜", "星", "楽", "空"]
+const BURST_CHARS := ["祝", "勝", "光", "花", "喜", "星", "楽"]
 const BURST_COLORS := [
 	Color("#e0b020"), Color("#3f9e44"), Color("#bb3023"), Color("#003cff"),
 ]
@@ -54,6 +55,8 @@ var _swinging := false      ## 斧を振っている最中か
 var _trail := false         ## 振り抜き中だけ残像を出す
 var _axe_prev_x := 0.0      ## 歪みの計算用。直前のフレームの斧の x
 var _finished := false      ## クリア後は完全に停止する
+var _can_restart := false   ## クリア後、やり直しを受け付けるか
+var _restart_hint: KanjiSprite  ## 「もう一度」の案内
 
 func _ready() -> void:
 	Game.reset()   ## 起動時だけ全変数を初期化する（斧を含む）
@@ -61,8 +64,13 @@ func _ready() -> void:
 	## シネマモード中に右端 (x>230) まで歩くとシーン 1 に戻る。
 	hero.reached_right_edge.connect(_on_hero_reached_right_edge)
 	_setup_colors()
-	await get_tree().create_timer(1.0).timeout  ## Scratch の「1秒待つ」
+	## 先にシーン 1 を組んでから待つ。
+	## 後から組むと、待っている間シーンの初期配置（全員が原点にいる状態）が
+	## 見えてしまい、一瞬シーン 2 のように見えてしまう。
 	start_scene1()
+	_busy = true                                ## 待っている間は入力を受けない
+	await get_tree().create_timer(1.0).timeout  ## Scratch の「1秒待つ」
+	_busy = false
 
 func _setup_colors() -> void:
 	hero.text = "勇";      hero.color = Color.BLACK
@@ -136,6 +144,10 @@ func start_scene2() -> void:
 
 	cut_mark.visible = false
 	cut_mark.set_scratch_pos(70, -130)
+
+	## 斧は「取った」ときだけ見えるようにする。
+	## ここで明示しないと、前の場面の表示状態がそのまま残ってしまう。
+	axe.visible = Game.got_axe
 
 	_draw_soil()
 
@@ -384,6 +396,9 @@ func _finish() -> void:
 	## 5. 最後に大きく「祝」を出す。
 	await _show_banner()
 
+	## 6. もう一度遊べるように案内を出す。
+	_show_restart_hint()
+
 ## ゼロから勢いよく拡大し、行き過ぎてから戻る（弾む拡大）。
 func _pop_in(node: Node2D, dur: float) -> void:
 	node.scale = Vector2.ZERO
@@ -451,3 +466,46 @@ func _show_banner() -> void:
 	add_child(banner)
 	banner.set_scratch_pos(0, 40)
 	await _pop_in(banner, 0.5)
+
+## クリア後の「もう一度」案内。点滅させ、スペースかクリックで最初から始める。
+func _show_restart_hint() -> void:
+	_restart_hint = KanjiSprite.new()
+	_restart_hint.text = "スペースキーでもう一度"
+	_restart_hint.color = COL_SUB
+	_restart_hint.font_size = 16
+	_restart_hint.z_index = 11
+	add_child(_restart_hint)
+	_restart_hint.set_scratch_pos(0, -60)
+
+	## この瞬間に押していたキーを拾わないよう、少し待ってから受け付ける。
+	await get_tree().create_timer(0.5).timeout
+	_can_restart = true
+	_blink_restart_hint()
+
+## 案内をゆっくり点滅させる。やり直したら止まる。
+func _blink_restart_hint() -> void:
+	var t := 0.0
+	while _can_restart and is_instance_valid(_restart_hint):
+		t = fmod(t + get_process_delta_time(), 1.2)
+		_restart_hint.modulate.a = 0.35 + 0.65 * (0.5 + 0.5 * sin(t * PI * 2.0 - PI * 0.5))
+		await get_tree().process_frame
+
+## 最初からやり直す。Game の変数も戻すので、斧を持っていない状態から始まる。
+func _restart() -> void:
+	if not _can_restart:
+		return
+	_can_restart = false
+	Game.reset()
+	## reload_current_scene() は current_scene が未設定だと失敗するので、
+	## 本編のシーンを名指しで読み直す。
+	get_tree().change_scene_to_file("res://scenes/main.tscn")
+
+func _unhandled_input(event: InputEvent) -> void:
+	if not _can_restart:
+		return
+	if event is InputEventMouseButton and event.pressed:
+		_restart()
+	elif event is InputEventKey and event.pressed and not event.echo:
+		if event.keycode == KEY_SPACE or event.keycode == KEY_ENTER \
+				or event.keycode == KEY_KP_ENTER:
+			_restart()
