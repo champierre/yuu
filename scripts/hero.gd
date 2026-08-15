@@ -12,6 +12,10 @@ signal reached_right_edge
 ## false にすると操作を受け付けなくなる（クリア演出中など）。
 var can_move := true
 
+## 最後に動いた向き。矢を射る方向に使う。
+## 一度も動いていないときのために、初めは上（目標のある側）を向いておく。
+var facing := Vector2.UP
+
 func _process(_delta: float) -> void:
 	if not can_move:
 		return
@@ -31,19 +35,23 @@ func _limit_y() -> float:
 ## シネマモードでない通常の移動。画面の四辺と川で止まる。
 func _move_normal() -> void:
 	if Input.is_action_pressed("ui_right"):
+		facing = Vector2.RIGHT
 		position.x += SPEED
 		if _touching_river() or scratch_pos().x > _limit_x():
 			position.x -= SPEED
 	if Input.is_action_pressed("ui_left"):
+		facing = Vector2.LEFT
 		position.x -= SPEED
 		if _touching_river() or scratch_pos().x < -_limit_x():
 			position.x += SPEED
 	## 上下も画面の外へ出ないように止める（+y が上）。
 	if Input.is_action_pressed("ui_down"):
+		facing = Vector2.DOWN
 		position.y += SPEED
 		if _touching_river() or scratch_pos().y < -_limit_y():
 			position.y -= SPEED
 	if Input.is_action_pressed("ui_up"):
+		facing = Vector2.UP
 		position.y -= SPEED
 		if _touching_river() or scratch_pos().y > _limit_y():
 			position.y += SPEED

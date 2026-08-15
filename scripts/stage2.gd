@@ -34,10 +34,10 @@ const BOW_SQUASH_X := 0.45
 ## 矢の速さ (px/秒) と、飛んでいられる時間。
 const ARROW_SPEED := 620.0
 const ARROW_LIFE := 1.2
-## 矢が出る位置（勇者から見た足元からの高さ）。
+## 矢が出る位置。勇者から、飛ぶ向きにこれだけ離れた所から出す。
 ## 弓の位置ではなく勇者を基準にする。弓は構えの分だけ右にずれているので、
-## そこから真上に射つと的の横を素通りしてしまうため。
-const ARROW_MUZZLE := Vector2(0, -18)
+## そこを起点にすると狙った先から外れてしまうため。
+const ARROW_MUZZLE_DIST := 18.0
 
 ## 橋が落ちるときの加速と、着地する高さ。
 const BRIDGE_GRAVITY := 900.0
@@ -58,7 +58,9 @@ var _finished := false      ## クリア後は完全に停止する
 var _can_restart := false   ## クリア後、やり直しを受け付けるか
 var _restart_hint: KanjiSprite
 var _telling := false       ## 促しを出している最中か
+var _scene1_hint: KanjiSprite  ## シーン1 の操作案内
 var _scene2_hint: KanjiSprite  ## シーン2 の操作案内
+var _shoot_was_down := false   ## 射撃キーの押しっぱなしを 1 回として扱うため
 
 func _ready() -> void:
 	## Game.reset() は stage_no を 1 に戻してしまうのでここでは呼ばない。
@@ -148,6 +150,22 @@ func start_scene1() -> void:
 
 	goal.visible = true
 	goal.set_scratch_pos(0, 150)
+
+	## 弓を持っていたら、向いた方へ射てることを伝える。
+	if Game.got_bow:
+		_show_scene1_hint()
+
+## シーン1 の操作案内。
+func _show_scene1_hint() -> void:
+	if is_instance_valid(_scene1_hint):
+		return
+	_scene1_hint = KanjiSprite.new()
+	_scene1_hint.text = "進む向きへスペースで射る"
+	_scene1_hint.color = COL_SUB
+	_scene1_hint.font_size = 14
+	_scene1_hint.z_index = 11
+	add_child(_scene1_hint)
+	_scene1_hint.set_scratch_pos(0, -150)
 
 # ---------------------------------------------------------------- シーン 2
 
@@ -255,7 +273,14 @@ func start_scene3() -> void:
 # ---------------------------------------------------------------- 毎フレーム処理
 
 func _process(_delta: float) -> void:
-	if _finished or _busy:
+	if _finished:
+		return
+	## 演出中でもキーの上げ下げは見ておく。
+	## ここを止めると、演出が明けたときに「押しっぱなし」の記録が
+	## 古いままになり、次の一射が出せなくなる。
+	var shoot_down := Input.is_action_pressed("ui_accept")
+	if _busy:
+		_shoot_was_down = shoot_down
 		return
 	match Game.scene_no:
 		1: _process_scene1()
@@ -263,12 +288,23 @@ func _process(_delta: float) -> void:
 		3: _process_scene3()
 
 func _process_scene1() -> void:
-	_try_take_bow()
+	## 弓を拾ったそのフレームで射ってしまわないようにする。
+	## 同じスペース 1 回で「拾う」と「射る」が続けて起きると、
+	## 押しっぱなしの判定が噛み合わず動けなくなる。
+	var just_took := _try_take_bow()
 	_follow_bow()
+	if just_took:
+		## 拾うのに使ったスペースを「押しっぱなし」として記録しておく。
+		## ここを書かないと、次のフレームで同じ押下が「押した瞬間」と
+		## 見なされ、そのまま 1 射目が出てしまう。
+		_shoot_was_down = true
+		return
 
-	## 弓を持って的に重なりスペース → 練習で一射。
-	if Game.got_bow and not Game.hit_target and target.visible \
-			and hero.touching(target) and Input.is_action_pressed("ui_accept"):
+	## 弓を持ってスペース → 向いている方へ一射。
+	## 的に重なる必要はない。離れた所から狙って当てられる。
+	## 押した瞬間だけ拾う。押しっぱなしで撃ち続けると、その間ずっと
+	## 演出中（_busy）になり、柱に触れても先へ進めなくなるため。
+	if Game.got_bow and _shoot_pressed():
 		_practice_shot()
 		return
 
@@ -286,7 +322,7 @@ func _process_scene2() -> void:
 	_follow_bow()
 
 	## 弓を持って紐の真下でスペース → 射る。
-	if Game.got_bow and Input.is_action_pressed("ui_accept"):
+	if Game.got_bow and _shoot_pressed():
 		_shoot_at_rope()
 
 func _process_scene3() -> void:
@@ -320,12 +356,23 @@ func _tell_need_bow() -> void:
 	await Effects.fade_trail(t, 0.4)
 	_telling = false
 
-## 弓に重なってスペースを押したら手に入れる。
-func _try_take_bow() -> void:
+## スペースを「押した瞬間」だけ true を返す。
+## 押しっぱなしを 1 回として扱う（連射させない）。
+func _shoot_pressed() -> bool:
+	var down := Input.is_action_pressed("ui_accept")
+	var just := down and not _shoot_was_down
+	_shoot_was_down = down
+	return just
+
+## 弓に重なってスペースを押したら手に入れる。拾ったら true。
+func _try_take_bow() -> bool:
 	if Game.got_bow or not bow.visible:
-		return
+		return false
 	if hero.touching(bow) and Input.is_action_pressed("ui_accept"):
 		Game.got_bow = true
+		_show_scene1_hint()
+		return true
+	return false
 
 ## 弓は勇者の右上に構える。射っている最中は演出側が位置を決めるので触らない。
 func _follow_bow() -> void:
@@ -336,12 +383,15 @@ func _follow_bow() -> void:
 
 # ---------------------------------------------------------------- 射る
 
-## 練習の一射。的に当てて手応えを見せるだけで、場面は変わらない。
+## シーン1 の一射。勇者が向いている方へ射る。
+## 的に当てても場面は変わらない（弓の使い方を覚えるための練習）。
 func _practice_shot() -> void:
 	_busy = true
+	## 射る瞬間の向きを覚えておく。演出の途中で向きが変わらないように。
+	var dir: Vector2 = hero.facing
 	await _draw_bow()
-	var hit := await _fly_arrow([target])
-	if hit:
+	var hit := await _fly_arrow([target], dir)
+	if hit and not Game.hit_target:
 		Game.hit_target = true
 		target.text = "中"      ## 当たった証。宝箱が「空箱」に変わるのと同じ見せ方
 		await _pop_hit(target)
@@ -388,19 +438,22 @@ func _deform_bow(k1: float, k2: float, dur: float, ease_type: int) -> void:
 ## 矢は回転させない。KanjiSprite の当たり判定は回転を考えないため、
 ## 傾けると見た目と判定がずれてしまう。代わりに縦書きにして、
 ## 「矢」の字そのものを上向きの細長い形として使う（斧を傾けないのと同じ考え方）。
-func _fly_arrow(targets: Array) -> bool:
+func _fly_arrow(targets: Array, dir: Vector2 = Vector2.UP) -> bool:
 	var a := KanjiSprite.new()
 	a.text = "矢"
 	a.color = COL_ARROW
-	a.vertical = true
+	## 縦横で字の形を変え、飛ぶ向きに沿った細長い形にする。
+	## 回転させないのは、当たり判定が回転を考えないため（傾けると見た目とずれる）。
+	a.vertical = absf(dir.y) > absf(dir.x)
 	add_child(a)
-	a.position = hero.position + ARROW_MUZZLE
+	## 矢は勇者から、飛ぶ向きに少し離れた所から出す。
+	a.position = hero.position + dir * ARROW_MUZZLE_DIST
 
 	var t := 0.0
 	while t < ARROW_LIFE:
 		var d := get_process_delta_time()
 		t += d
-		a.position.y -= ARROW_SPEED * d   ## 上へ（Godot は下が +y）
+		a.position += dir * ARROW_SPEED * d
 		Effects.leave_trail(self, a)      ## 速いので、軌跡が一本の線に見える
 
 		for obj in targets:
@@ -408,8 +461,10 @@ func _fly_arrow(targets: Array) -> bool:
 				a.queue_free()
 				return true
 
-		## 画面の上に抜けたら外れ。
-		if a.position.y < -40.0:
+		## 画面の外に抜けたら外れ。
+		var p := a.position
+		if p.x < -40.0 or p.x > Game.STAGE_W + 40.0 \
+				or p.y < -40.0 or p.y > Game.STAGE_H + 40.0:
 			break
 		await get_tree().process_frame
 
