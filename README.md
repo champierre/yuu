@@ -103,7 +103,8 @@ GitHub Pages へ自動デプロイします（`.github/workflows/deploy.yml`）�
 
 ## ライセンス
 
-- ソースコード: [MIT License](LICENSE)
+- ソースコード: 著作権は作者が保有します（All rights reserved）。
 - 同梱フォント `fonts/NotoSansJP-Regular.otf`:
   SIL Open Font License 1.1（[fonts/OFL.txt](fonts/OFL.txt)）
 - 原作: [漢字謎解きアクション「勇」の冒険](https://scratch.mit.edu/projects/169268428/) by jishiha
+  （原作者本人による移植です）
