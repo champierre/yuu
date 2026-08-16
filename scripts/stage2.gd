@@ -59,6 +59,7 @@ enum { EASE_IN, EASE_OUT }
 @onready var goal: KanjiSprite = $Goal
 
 var _villagers: Array = []
+var _villager_lines := {}    ## 村人ごとに、どちらのセリフを言うか
 var _busy := false           ## 演出中は入力を無視する
 var _finished := false
 var _can_restart := false
@@ -117,13 +118,20 @@ func start_scene1() -> void:
 	item.text = "金"
 	item.color = COL_GOLD
 
-	gate1.visible = true
+	## 門は壁と同じ入れ物に移して、開くまでは通れないようにする。
+	## ここに入れ忘れると、閉じているのにすり抜けられてしまう。
+	for gate in [gate1, gate2]:
+		if gate.get_parent() != wall_root:
+			gate.get_parent().remove_child(gate)
+			wall_root.add_child(gate)
+		gate.visible = true
+		gate.modulate.a = 1.0
 	gate1.set_scratch_pos(GATE1_X, WALL_Y)
-	gate2.visible = true
 	gate2.set_scratch_pos(GATE2_X, WALL_Y)
 
 	keeper.visible = true
-	keeper.set_scratch_pos(25, 60)
+	## 壁 (y=75) と重ならないよう、少し下に立たせる。
+	keeper.set_scratch_pos(40, 40)
 
 	thief.visible = true
 	thief.set_scratch_pos(-60, -20)
@@ -139,7 +147,10 @@ func start_scene1() -> void:
 ## 壁を横一列に並べる。門のある 2 マスだけ空ける。
 ## 門も同じ入れ物にぶら下げて、まとめて当たり判定の相手にする。
 func _build_wall() -> void:
+	## 門は使い回すので消さない。壁だけを作り直す。
 	for c in wall_root.get_children():
+		if c == gate1 or c == gate2:
+			continue
 		wall_root.remove_child(c)
 		c.queue_free()
 
@@ -418,10 +429,16 @@ func _meet_villagers() -> void:
 			continue
 		if Game.lost_gold:
 			_say("村人「かわいそうに……」")
-		elif randi() % 2 == 0:
-			_say("村人「盗人（ぬすっと）には気をつけな！」")
 		else:
-			_say("村人「お金を盗まれてしまうぞ」")
+			## どちらを言うかは村人ごとに決めておく。
+			## 毎コマ選び直すと、話しかけている間ずっと文が入れ替わって
+			## ちらついてしまう。
+			if not _villager_lines.has(v):
+				_villager_lines[v] = randi() % 2
+			if _villager_lines[v] == 0:
+				_say("村人「盗人（ぬすっと）には気をつけな！」")
+			else:
+				_say("村人「お金を盗まれてしまうぞ」")
 		return
 
 # ---------------------------------------------------------------- セリフ
