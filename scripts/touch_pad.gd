@@ -10,25 +10,29 @@ class_name TouchPad
 ## 離したことまで正しく伝える必要があるため。
 
 ## ボタンの見た目。
-const BTN_SIZE := 34
+const BTN_SIZE := 44
 const COL_BTN := Color("#555555")
 const COL_BTN_ON := Color("#bb3023")   ## 押している間
 const COL_DIVIDER := Color("#aaaaaa") ## 盤面とボタンの境目
 const COL_PAD_BG := Color("#f0efe9")  ## ボタンを置く帯の地色
-## ボタンを置く帯の高さ。
-const PAD_HEIGHT := 120.0
+## ボタンを置く帯の高さ。指で押しやすいよう広めに取る。
+const PAD_HEIGHT := 220.0
 
 ## 盤面の下に置く帯の高さ（project.godot のビューポートと合わせる）。
 const PAD_TOP := 360.0
 
 ## ボタン 1 つぶんの決まり。どの見た目で、どのキーとして扱うか。
+## ボタンの並び。指で押すので、間隔も当たりも広めに取っている。
 const BUTTONS := [
-	{"text": "上", "action": "ui_up", "x": 90.0, "y": 30.0},
-	{"text": "左", "action": "ui_left", "x": 40.0, "y": 70.0},
-	{"text": "右", "action": "ui_right", "x": 140.0, "y": 70.0},
-	{"text": "下", "action": "ui_down", "x": 90.0, "y": 110.0},
-	{"text": "押", "action": "ui_accept", "x": 380.0, "y": 70.0},
+	{"text": "上", "action": "ui_up", "x": 112.0, "y": 50.0},
+	{"text": "左", "action": "ui_left", "x": 50.0, "y": 112.0},
+	{"text": "右", "action": "ui_right", "x": 174.0, "y": 112.0},
+	{"text": "下", "action": "ui_down", "x": 112.0, "y": 174.0},
+	{"text": "押", "action": "ui_accept", "x": 422.0, "y": 112.0},
 ]
+## 指が当たったとみなす広さ。見た目より大きく取る。
+## 隣のボタンと重ならない範囲で、できるだけ広くしてある。
+const BTN_REACH := 42.0
 
 ## 押されているボタンと、その指の id。
 var _pressed := {}
@@ -51,7 +55,7 @@ func _ready() -> void:
 	## ボタンを置くぶんだけ画面を縦に広げる。
 	## 盤面 (480x360) の中に重ねると、下の方に置いた文字が隠れてしまう。
 	## パソコンでは出さないので、そのときは盤面のままで余白も出ない。
-	get_window().content_scale_size = Vector2i(480, 480)
+	get_window().content_scale_size = Vector2i(480, int(PAD_TOP + PAD_HEIGHT))
 	_build()
 
 func _build() -> void:
@@ -68,7 +72,7 @@ func _build() -> void:
 
 	## 「押」は他より大きくして、押しやすく目立たせる。
 	if _labels.has("ui_accept"):
-		_labels["ui_accept"].font_size = BTN_SIZE + 10
+		_labels["ui_accept"].font_size = BTN_SIZE + 16
 
 ## ボタンを置く帯に、薄い地色を敷く。
 ## 盤面が白いので、うっすら色を変えるだけで「ここは別の場所」と分かる。
@@ -120,7 +124,7 @@ func _press_at(pos: Vector2, finger: int) -> void:
 	for b in BUTTONS:
 		var center := Vector2(b["x"], PAD_TOP + b["y"])
 		## 見た目より広めに取る。指は正確に当たらないため。
-		if pos.distance_to(center) > BTN_SIZE:
+		if pos.distance_to(center) > BTN_REACH:
 			continue
 		_pressed[finger] = b["action"]
 		_send(b["action"], true)
