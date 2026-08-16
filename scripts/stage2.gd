@@ -166,19 +166,20 @@ func _build_wall() -> void:
 		x += WALL_STEP
 
 ## 村人を 3 人置く。街をうろついて、勇者に話しかけてくる。
+## 村人はシーンに 3 人置いてある。それを並べ直して使う。
+## ここで新しく作ると、シーン側の 3 人が置き場所のないまま
+## 画面の隅に そのまま残ってしまう。
 func _build_villagers() -> void:
-	for v in _villagers:
-		if is_instance_valid(v):
-			v.queue_free()
-	_villagers.clear()
+	_villagers = [$Villager1, $Villager2, $Villager3]
+	_villager_lines.clear()
 
-	for p in [Vector2(0, 0), Vector2(-100, -80), Vector2(100, -20)]:
-		var v := KanjiSprite.new()
+	var spots := [Vector2(0, 0), Vector2(-100, -80), Vector2(100, -20)]
+	for i in _villagers.size():
+		var v: KanjiSprite = _villagers[i]
 		v.text = "村人"
 		v.color = COL_VILLAGER
-		add_child(v)
-		v.set_scratch_pos(p.x, p.y)
-		_villagers.append(v)
+		v.visible = true
+		v.set_scratch_pos(spots[i].x, spots[i].y)
 
 # ---------------------------------------------------------------- 毎フレーム処理
 
