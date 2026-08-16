@@ -68,10 +68,23 @@ GitHub Pages へ自動デプロイします（`.github/workflows/deploy.yml`）�
 | `scripts/stage1.gd` | ステージ 1 の進行と演出 |
 | `scripts/stage2.gd` | ステージ 2 の進行と演出 |
 | `scripts/stage3.gd` | ステージ 3 の進行と演出 |
+| `scripts/stage4.gd` | ステージ 4（作りかけ。debug のときだけ遊べる） |
 | `scenes/title.tscn` | タイトル画面のシーン |
 | `scenes/stage1.tscn` | ステージ 1 のスプライトを配置したシーン |
 | `scenes/stage2.tscn` | ステージ 2 のスプライトを配置したシーン |
 | `scenes/stage3.tscn` | ステージ 3 のスプライトを配置したシーン |
+| `scenes/stage4.tscn` | ステージ 4 のスプライトを配置したシーン |
+
+### 作りかけのステージを試す
+
+アドレスの後ろに `?debug=true` を付けて開くと、タイトルに作りかけの
+ステージ 4 が並びます。付けずに開いたときは今までどおり 3 つだけです。
+
+    https://champierre.github.io/yuu/?debug=true
+
+パソコンで動かすときは起動の引数で渡します。
+
+    godot -- debug=true
 
 開発時に気をつけることは [CLAUDE.md](CLAUDE.md) にまとめています。
 

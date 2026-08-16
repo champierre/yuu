@@ -977,7 +977,7 @@ func _finish() -> void:
 	if _left():
 		return
 
-	if Game.stage_no < Game.STAGE_MAX:
+	if Game.stage_no < Game.last_stage():
 		_show_end_hint("%sで次のステージへ" % TouchPad.accept_key_name())
 	else:
 		_show_end_hint("%sでもう一度" % TouchPad.accept_key_name())

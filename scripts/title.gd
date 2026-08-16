@@ -67,7 +67,8 @@ func _build() -> void:
 func _add_stage_select() -> void:
 	const GAP := 28.0
 	var texts: Array = []
-	for i in Game.STAGE_MAX:
+	## 並べる数は Game に聞く。debug のときだけ作りかけのステージが増える。
+	for i in Game.last_stage():
 		texts.append("ステージ%d" % (i + 1))
 
 	## 先に全体の幅を出しておく（KanjiSprite は作ってからでないと幅が分からないので、
@@ -107,7 +108,7 @@ func _update_stage_select() -> void:
 		if left:
 			_sel = maxi(1, _sel - 1)
 		else:
-			_sel = mini(Game.STAGE_MAX, _sel + 1)
+			_sel = mini(Game.last_stage(), _sel + 1)
 		_refresh_stage_select()
 	_lr_was_down = down
 

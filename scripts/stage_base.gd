@@ -139,7 +139,7 @@ func _confirm() -> void:
 	if not _can_restart:
 		return
 	_can_restart = false
-	if Game.stage_no < Game.STAGE_MAX:
+	if Game.stage_no < Game.last_stage():
 		Game.goto_stage(get_tree(), Game.stage_no + 1)
 	else:
 		Game.reset()
