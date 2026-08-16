@@ -28,6 +28,10 @@ const COL_STRAIN_MID := Color("#e87a20")   ## 半ば（橙）
 const COL_STRAIN_HIGH := Color("#d02020")  ## 引き絞りきり（赤）
 ## 引き絞りきったときに、勇者がどれだけ大きくなるか。
 const STRAIN_GROW := 0.5
+## 引き絞りきったまま粘っていられる時間（秒）。これを超えると力尽きる。
+const HOLD_LIMIT := 1.2
+## 力尽きたあと、動けない時間（秒）。
+const EXHAUST_TIME := 1.4
 
 ## 弓を構える位置（勇者から見て右上）。ステージ 1 の斧と同じ考え方。
 const BOW_OFFSET := Vector2(16, -16)
@@ -59,10 +63,6 @@ const ARROW_LIFE := 2.0
 const ARROW_MUZZLE_DIST := 18.0
 ## 矢の当たる広さ。蟲は動くので、矩形が触れるかだけでは狙いが厳しすぎる。
 const ARROW_REACH := 22.0
-## 残像を置く間隔 (px)。これより近い所には重ねて置かない。
-const TRAIL_GAP := 12.0
-## 残像が消えるまでの時間 (秒)。短く保ち、矢が着いたらすぐ消えるようにする。
-const TRAIL_LIFE := 0.08
 
 ## 蟲の節の数（頭を除く）。最後の 1 つが弱点の「尾」。
 const JOINT_COUNT := 7
@@ -103,6 +103,7 @@ var _charge := 0.0          ## 引き絞り具合（0=細い 〜 1=引き絞り�
 var _leaving := false       ## この場面を出ていく最中か（演出を止める合図）
 var _shooting := false      ## 射っている最中か（弓の位置は演出側が決める）
 var _await_release := false ## 一度キーを離すまで引き絞りを始めない
+var _hold_time := 0.0       ## 引き絞りきったまま粘っている時間
 var _worm_beaten := false   ## 蟲を倒したか（穴が目標に変わったか）
 
 ## 蟲の頭と、連なる節。節の最後が「尾」。
@@ -265,15 +266,19 @@ func _build_worm() -> void:
 	_worm_head.color = COL_WORM
 	_worm_head.font_size = 32
 	worm_root.add_child(_worm_head)
-	## 穴から這い出てきた形にするため、頭は穴の位置から始める。
-	_worm_head.set_scratch_pos(0, HOLE_Y)
+	## いつもの定位置（蛇行の高さ）に置く。
+	## ここで穴の位置に置くと、節が穴に取り残されたままになり、
+	## 尾がはるか遠くにあって矢が届かなくなる。
+	_phase = 0.0
+	var c := Game.to_godot(0, WORM_Y)
+	_worm_head.position = c
 
-	## 軌跡をあらかじめ頭の後ろへ伸ばしておく。
+	## 軌跡を頭の後ろへ伸ばしておく。
 	## こうしないと節が全部頭の上に重なったまま、しばらく過ぎてしまう。
 	_trail.clear()
 	var need := JOINT_COUNT * TRAIL_SKIP + TRAIL_SKIP + 2
 	for i in need:
-		_trail.append(_worm_head.position - Vector2(float(i) * TRAIL_STEP, 0.0))
+		_trail.append(c - Vector2(float(i) * TRAIL_STEP, 0.0))
 
 	for i in JOINT_COUNT:
 		var s := KanjiSprite.new()
@@ -462,6 +467,7 @@ func _defeated() -> void:
 	_rest_hero()   ## 「疲」のままにしない
 	_shoot_was_down = false
 	_charge = 0.0
+	_hold_time = 0.0
 	_await_release = false
 	_clear_poisons()
 	start_scene1()
@@ -577,21 +583,58 @@ func _update_charge(delta: float) -> void:
 		## 狙いを定める動作なので、歩きながら撃てると緊張感が無くなる。
 		hero.can_move = false
 		_show_strain()
+
+		## 引き絞りきったまま粘ると、腕が保たなくなる。
+		## そのまま撃たずにいられると強すぎるので、限界を設けた。
+		if _charge >= 1.0:
+			_hold_time += delta
+			if _hold_time >= HOLD_LIMIT:
+				_exhaust()
+				return
+		else:
+			_hold_time = 0.0
 	elif _shoot_was_down:
 		## 離した瞬間に放つ。ためた分だけ速く飛ぶ。
 		var k := _charge
 		_charge = 0.0
+		_hold_time = 0.0
 		_shoot_was_down = false
 		hero.can_move = true   ## 放ったので、また動ける
 		_rest_hero()           ## 「疲」から元の「勇」へ戻す
-		## 蟲がまだ出てくる途中なら、構えは解くが矢は放たない。
-		## 登場演出と射撃演出が重なると、どちらも中途半端になるため。
-		if not _emerging_now:
-			_shoot(k)
+		_shoot(k)
 		return
 
 	_shoot_was_down = down
 	_show_bow_charge()
+
+## 引き絞りきったまま粘りすぎた。弓が戻り、しばらく動けなくなる。
+## 矢は出ない。ため得にならないようにするための仕掛け。
+func _exhaust() -> void:
+	_busy = true
+	_charge = 0.0
+	_hold_time = 0.0
+	_shoot_was_down = true    ## 離すまで次の構えを始めない
+	_await_release = true
+	hero.can_move = false
+
+	## 弓が力なく元の細さへ戻る。
+	await _release_bow()
+
+	## 「疲」を max のまま見せて、息が上がっている様子にする。
+	hero.text = "疲"
+	hero.color = COL_STRAIN_HIGH
+	hero.scale = Vector2.ONE * (1.0 + STRAIN_GROW)
+	var t := 0.0
+	while t < EXHAUST_TIME:
+		t += get_process_delta_time()
+		## 肩で息をするように、ゆっくり大きく揺れる。
+		var breathe := sin(t * 8.0) * 0.05
+		hero.scale = Vector2.ONE * (1.0 + STRAIN_GROW + breathe)
+		await get_tree().process_frame
+
+	_rest_hero()
+	hero.can_move = true
+	_busy = false
 
 ## 引き絞っている間の勇者。「疲」に変わり、力むほど少しずつ大きくなる。
 ## 動けないことを、字そのもので見せている。
@@ -620,7 +663,12 @@ func _rest_hero() -> void:
 
 ## 引き具合を弓の太さで見せる。細い状態から、ためるほど太くなる。
 func _show_bow_charge() -> void:
-	if not Game.got_bow or _busy:
+	if not Game.got_bow:
+		return
+	## 射っている最中は演出側が弓の形を決めるので触らない。
+	## _busy では見ない。蟲が出てくる間も _busy になるため、
+	## そこで止めると弓だけ引き絞られない見た目になってしまう。
+	if _shooting:
 		return
 	bow.position = hero.position + BOW_OFFSET
 	var w := lerpf(BOW_THIN, BOW_THICK, _charge)
@@ -635,7 +683,12 @@ func _show_bow_charge() -> void:
 ## 向きは常に画面の上。狙いは左右の立ち位置だけで合わせる。
 ## 当たった相手によって起きることが変わるので、ここで振り分ける。
 func _shoot(k: float) -> void:
-	_busy = true
+	## 蟲が出てくる途中でも射てる。
+	## ただし登場演出も _busy を使うので、こちらが勝手に false へ
+	## 戻さないよう、登場中かどうかを覚えておく。
+	var during_emerge := _emerging_now
+	if not during_emerge:
+		_busy = true
 	_shooting = true
 
 	## 尾・節・頭・的のどれに当たったかを見る。
@@ -648,17 +701,22 @@ func _shoot(k: float) -> void:
 	var struck = await _fly_arrow(targets, Vector2.UP, k)
 	await _release_bow()
 
-	if struck == null:
-		_busy = false
-		return
-
 	_shooting = false
-	hero.can_move = true   ## 演出が済んだら動けるように戻す
-	if _is_tail(struck):
-		await _cut_tail()
-	else:
-		## 頭と節は硬い。弾かれるだけ。
-		await _bounce_off(struck)
+	hero.can_move = true   ## 撃ち終わったら動けるように戻す
+
+	## 当たった相手ごとの後始末。
+	if struck != null:
+		if _is_tail(struck):
+			## 尾を落とす。この中で場合によっては撃破演出まで進む。
+			await _cut_tail(during_emerge)
+		else:
+			## 頭と節は硬い。弾かれるだけ。
+			await _bounce_off(struck)
+
+	## _busy はこちらが立てたときだけ下ろす。
+	## 登場演出も同じ旗を使っているので、横取りして下ろすと
+	## 蟲が出そろったあとも操作を受け付けなくなってしまう。
+	if not during_emerge:
 		_busy = false
 
 ## その相手が今の「尾」か。
@@ -666,7 +724,7 @@ func _is_tail(s) -> bool:
 	return not _joints.is_empty() and s == _joints[_joints.size() - 1]
 
 ## 尾に当たった。節が 1 つ減り、新しい末尾が尾になる。
-func _cut_tail() -> void:
+func _cut_tail(during_emerge: bool = false) -> void:
 	var tail: KanjiSprite = _joints.pop_back()
 	var p := tail.position
 	tail.queue_free()
@@ -686,7 +744,8 @@ func _cut_tail() -> void:
 	else:
 		_mark_tail()
 		await get_tree().create_timer(0.25).timeout
-		_busy = false
+		if not during_emerge:
+			_busy = false
 
 ## 硬い所に当たったときの反応。跳ね返って「硬」と出る。
 func _bounce_off(s: KanjiSprite) -> void:
@@ -772,8 +831,6 @@ func _fly_arrow(targets: Array, dir: Vector2 = Vector2.UP, k: float = 1.0):
 	var fall := 0.0
 
 	var t := 0.0
-	## 残像を置いた場所。近すぎる所には重ねて置かない。
-	var last_trail := a.position
 	while t < ARROW_LIFE:
 		if _leaving or not is_instance_valid(a):
 			if is_instance_valid(a):
@@ -784,15 +841,10 @@ func _fly_arrow(targets: Array, dir: Vector2 = Vector2.UP, k: float = 1.0):
 		if start.distance_to(a.position) < range_max:
 			## まだ勢いがある。まっすぐ飛ぶ。
 			a.position += dir * speed * d
-			## 軌跡は飛んでいる間だけ、しかも一定の間隔を空けて置く。
-			## 毎コマ置くと、遅い矢ほど同じ場所に濃く積み重なり、
-			## 消えるまでいつまでも残って見えてしまう。
-			if last_trail.distance_to(a.position) >= TRAIL_GAP:
-				last_trail = a.position
-				## 残像は矢より長生きさせない。
-				## 既定 (0.18秒) のままだと、飛距離の短い矢では
-				## 本体が着いたあとも残像だけが漂って見えてしまう。
-				Effects.leave_trail(self, a, TRAIL_LIFE)
+			## 矢の残像は今は出していない。
+			## 消え残りが目立ったため、いったん無しにしている。
+			## 戻すなら、置いた残像を自分で持っておいて、矢が消えるときに
+			## まとめて捨てる形にするのが確実。
 		else:
 			## 力尽きた。あとは落ちるだけ。残像はもう置かない。
 			fall += 900.0 * d
