@@ -99,6 +99,7 @@ var _joints: Array = []
 var _trail: Array = []
 var _phase := 0.0
 var _emerging := 1.0        ## 穴から出てくる途中の度合い（1=出きった）
+var _emerging_now := false  ## 登場演出の最中か（頭を動かす担当を分けるため）
 var _poison_timer := 0.0    ## 次に毒を吐くまで
 var _poisons: Array = []    ## 飛んでいる毒
 
@@ -165,67 +166,78 @@ func start_scene1() -> void:
 ## いきなり全身が並ぶと唐突なので、順に出して「出てきた」と分かるようにする。
 func _emerge_worm() -> void:
 	_busy = true
+	_emerging_now = true   ## この間、頭を動かすのはこの関数だけ
 	_clear_worm()
 
 	var hole := Game.to_godot(0, HOLE_Y)
-	## 頭を作る前に「これから穴を出る」状態にしておく。
-	## 先に作ると、せり出す演出の間に _process が定位置へ動かしてしまう。
 	_emerging = 0.0
 	_phase = 0.0
 
-	## まず頭が穴からせり出す。
-	_worm_head = KanjiSprite.new()
-	_worm_head.text = "蟲"
-	_worm_head.color = COL_WORM
-	_worm_head.font_size = 32
-	worm_root.add_child(_worm_head)
-	_worm_head.position = hole
-	await Effects.pop_in(_worm_head, 0.4)
-
-	## 軌跡は穴の位置から始める。節はこの道をたどって出てくる。
+	## 軌跡は穴で埋めておく。節はこの道をたどって出てくるので、
+	## 頭が進んで道が伸びるまでは、みな穴の中にいることになる。
 	_trail.clear()
 	var need := JOINT_COUNT * TRAIL_SKIP + TRAIL_SKIP + 2
 	for i in need:
 		_trail.append(hole)
 
-	## 頭が這い進むあいだに、節が穴から 1 つずつ続いて出てくる。
-	## 節が出る間隔は時間で計る。軌跡の中身を見て判断すると、
-	## 頭が動いた拍子に何本も一度に出てしまう。
-	_phase = 0.0
-	_emerging = 0.0   ## ここから穴を出ていく
+	## まず頭が穴からゆっくりせり出す。
+	_worm_head = KanjiSprite.new()
+	_worm_head.text = "蟲"
+	_worm_head.color = COL_WORM
+	_worm_head.font_size = 32
+	_worm_head.scale = Vector2.ZERO
+	worm_root.add_child(_worm_head)
+	_worm_head.position = hole
+	var t := 0.0
+	while t < HEAD_EMERGE_TIME:
+		t += get_process_delta_time()
+		var k: float = clampf(t / HEAD_EMERGE_TIME, 0.0, 1.0)
+		## 穴からせり上がるように、下から現れて大きくなる。
+		_worm_head.scale = Vector2.ONE * k
+		await get_tree().process_frame
+	_worm_head.scale = Vector2.ONE
+
+	## 頭が這い出し、そのあとを節が 1 つずつ追って出てくる。
+	## 節は穴に置くだけにして、位置は軌跡に任せる。
+	## 頭が進むほど道が伸びるので、後ろの節ほど遅れて穴を離れる。
 	var appeared := 0
 	var wait := 0.0
-	while appeared < JOINT_COUNT:
+	while _emerging < 1.0 or appeared < JOINT_COUNT:
 		var d := get_process_delta_time()
 		_advance_worm_head(d)
 
-		wait += d
-		if wait >= JOINT_EMERGE_INTERVAL:
-			wait = 0.0
-			var s := KanjiSprite.new()
-			s.text = "節"
-			s.color = COL_JOINT
-			s.font_size = 26
-			worm_root.add_child(s)
-			s.position = hole
-			_joints.append(s)
-			appeared += 1
-			_mark_tail()
-			## 出てきた節を、軌跡の上の持ち場へ滑り込ませる。
-			_place_joints()
+		if appeared < JOINT_COUNT:
+			wait += d
+			if wait >= JOINT_EMERGE_INTERVAL:
+				wait = 0.0
+				var s := KanjiSprite.new()
+				s.text = "節"
+				s.color = COL_JOINT
+				s.font_size = 26
+				worm_root.add_child(s)
+				s.position = hole
+				_joints.append(s)
+				appeared += 1
+				_mark_tail()
+		_place_joints()
 		await get_tree().process_frame
 
+	_emerging_now = false
 	_busy = false
 
+## 頭が穴からせり出すのにかける時間（秒）。
+const HEAD_EMERGE_TIME := 0.7
 ## 節が 1 つ出てくる間隔（秒）。
-const JOINT_EMERGE_INTERVAL := 0.18
+const JOINT_EMERGE_INTERVAL := 0.35
 ## 頭が穴から定位置へ移りきるまでの時間（秒）。
-const EMERGE_MOVE_TIME := 1.6
+## ゆっくり這い出てくるように、長めに取る。
+const EMERGE_MOVE_TIME := 3.0
 
 ## 蟲を組み立てる（やり直しのときなど、演出なしで並べる）。
 func _build_worm() -> void:
 	_clear_worm()
-	_emerging = 1.0   ## 演出なしなので、出きった状態から始める
+	_emerging = 1.0        ## 演出なしなので、出きった状態から始める
+	_emerging_now = false
 
 	_worm_head = KanjiSprite.new()
 	_worm_head.text = "蟲"
@@ -283,7 +295,10 @@ func _process(delta: float) -> void:
 
 	## 蟲は演出中も動かし続ける。
 	## ここを止めると、矢が飛んでいる間だけ蟲が固まって見えてしまう。
-	_move_worm(delta)
+	## ただし穴から出てくる間は演出側が動かすので、ここでは触らない
+	## （両方から動かすと進み方が二重になり、頭が飛んで見える）。
+	if not _emerging_now:
+		_move_worm(delta)
 
 	if _busy:
 		_shoot_was_down = shoot_down
