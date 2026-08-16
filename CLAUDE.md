@@ -223,9 +223,25 @@ for i in 400:
 godot --headless --export-release "Web" build/web/index.html
 ```
 
+## 進め方
+
+**`main` へ直接 push はできない。必ずブランチを切って PR を出す。**
+
+```sh
+git checkout -b 直すことの名前
+# 直す
+./tests/run_all.sh        # 出す前に手元で通す
+git push -u origin 直すことの名前
+gh pr create
+```
+
+PR の間はテストが走らない（作業中は落ちて当たり前なので）。
+**手元で `./tests/run_all.sh` を通してから出すこと。**
+
 ## デプロイ
 
-`main` への push で GitHub Actions が Web 版を書き出し、GitHub Pages へ公開する。
+`main` に入ると GitHub Actions がテストを走らせ、通れば Web 版を書き出して
+GitHub Pages へ公開する。テストが落ちたら公開されない。
 公開先: https://champierre.github.io/yuu/
 
 **直したつもりで直っていないときは、まず push できているかを見る。**
