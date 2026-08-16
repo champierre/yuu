@@ -421,6 +421,11 @@ func _show_next_stage_hint() -> void:
 func _blink_restart_hint() -> void:
 	Effects.blink(_restart_hint, func(): return _can_restart or _can_advance)
 
+## この場面をもう離れたか。演出は await をまたぐので、
+## 続きを進める前にこれで確かめる。
+func _left() -> bool:
+	return _leaving or not is_inside_tree()
+
 ## 最初からやり直す。Game の変数も戻すので、斧を持っていない状態から始まる。
 func _restart() -> void:
 	if not _can_restart:
