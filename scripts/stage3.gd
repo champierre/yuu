@@ -738,10 +738,11 @@ func _cut_tail(during_emerge: bool = false) -> void:
 	await get_tree().process_frame
 	tail.queue_free()
 
-	## 切れた所から破片を飛ばす。
+	## 落とした尾が砕けて飛び散る。
+	## 当てたのは「尾」なので、飛ぶのも「尾」にしておく。
 	for d in [Vector2(-1, -1), Vector2(1, -1)]:
 		var piece := KanjiSprite.new()
-		piece.text = "節"
+		piece.text = "尾"
 		piece.color = COL_TAIL
 		add_child(piece)
 		piece.position = p
