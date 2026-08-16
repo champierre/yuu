@@ -10,6 +10,13 @@ const COL_SCAR := Color("#6b4423")   ## 木に残る切り込み
 ## 切り込みの大きさ。切った回数ぶん深く（大きく）なる。
 const SCAR_SIZE := 14
 const SCAR_GROW := 8
+
+## 木の立っている場所。
+const TREE_X := 30.0
+## 根元の木の下端。ここに 1 つ目が立つ。
+const TREE_BASE_Y := -158.0
+## 切り口の高さ。木 1 つ分だけ上（ここから上の 3 つが倒れる）。
+const TREE_CUT_Y := TREE_BASE_Y + 30.0
 const COL_SOIL := Color("#6a302a")   ## 土
 const COL_GOAL := Color("#000000")   ## 目標
 const COL_DONE := Color("#3f9e44")   ## 達成
@@ -57,7 +64,8 @@ var _finished := false      ## クリア後は完全に停止する
 var _can_restart := false   ## クリア後、やり直しを受け付けるか
 var _can_advance := false   ## クリア後、次のステージへ進むのを受け付けるか
 var _leaving := false       ## この場面を出ていく最中か（演出を止める合図）
-var _scar: KanjiSprite = null  ## 木の根元の切り込み（1 つだけ。切るほど大きくなる）
+var _scar: KanjiSprite = null   ## 切り口の切り込み（1 つだけ。切るほど大きくなる）
+var _stump: KanjiSprite = null  ## 根元の木。倒れずに残る
 var _restart_hint: KanjiSprite  ## 「もう一度」の案内
 
 func _ready() -> void:
@@ -66,10 +74,12 @@ func _ready() -> void:
 	## シネマモード中に右端 (x>230) まで歩くとシーン 1 に戻る。
 	hero.reached_right_edge.connect(_on_hero_reached_right_edge)
 	_setup_colors()
-	Effects.show_escape_hint(self)   ## 左上に「Esc でタイトルに戻る」
 	## 操作ボタンは、指で触れる機械のときだけ出す。
+	## そのときは「戻」ボタンから帰れるので、Esc の案内は出さない。
 	if TouchPad.needed():
 		add_child(TouchPad.new())
+	else:
+		Effects.show_escape_hint(self)
 	## 先にシーン 1 を組んでから待つ。
 	## 後から組むと、待っている間シーンの初期配置（全員が原点にいる状態）が
 	## 見えてしまい、一瞬シーン 2 のように見えてしまう。
@@ -83,10 +93,12 @@ func _setup_colors() -> void:
 	tree_sprite.text = "木"; tree_sprite.color = COL_TREE
 	chest.text = "宝箱";    chest.color = COL_CHEST
 	goal.text = "目標";     goal.color = COL_GOAL
-	forest.text = "木木木"
+	## 木は縦に 4 つ。切り込みは下から 1 つ目と 2 つ目の間に入り、
+	## そこから上の 3 つが倒れる。倒れる側と残る側で分けて持つ。
+	forest.text = "木木木"            ## 倒れる上の 3 つ
 	forest.color = COL_TREE
 	forest.vertical = true
-	forest.pivot = Vector2(0.5, 1.0)  ## 根元を軸にして倒れる
+	forest.pivot = Vector2(0.5, 1.0)  ## 切り口を軸にして倒れる
 	axe.text = "斧";        axe.color = COL_AXE
 	cut_mark.text = "切";   cut_mark.color = COL_CUT
 
@@ -122,6 +134,8 @@ func start_scene1() -> void:
 	chest.set_scratch_pos(200, -150)
 
 	forest.visible = false
+	if is_instance_valid(_stump):
+		_stump.visible = false
 	axe.visible = Game.got_axe
 	cut_mark.visible = false
 	_clear_soil()
@@ -129,6 +143,24 @@ func start_scene1() -> void:
 # ---------------------------------------------------------------- シーン 2
 
 ## start1_2: シネマモード。宝箱から斧を取り、木木木 を 3 回切って倒す。
+## 根元の木を 1 つ置く。切り込みより下なので、倒れずに残る。
+func _build_stump() -> void:
+	if _stump == null or not is_instance_valid(_stump):
+		_stump = KanjiSprite.new()
+		_stump.text = "木"
+		_stump.color = COL_TREE
+		_stump.pivot = Vector2(0.5, 1.0)
+		add_child(_stump)
+	_stump.visible = true
+	_stump.rotation = 0.0
+	_stump.set_scratch_pos(TREE_X, TREE_BASE_Y)
+
+## 木（上の 3 つ・根元のどちらか）に触れているか。
+func _touching_tree() -> bool:
+	if hero.touching(forest):
+		return true
+	return is_instance_valid(_stump) and hero.touching(_stump)
+
 ## 木の切り込みを消す。
 func _clear_scars() -> void:
 	if is_instance_valid(_scar):
@@ -151,9 +183,14 @@ func start_scene2() -> void:
 
 	hero.set_scratch_pos(150, -145)
 
+	## 上の 3 つ。切り口（下から 1 つ目と 2 つ目の境）を軸に倒れる。
 	forest.visible = true
 	forest.rotation = 0.0
-	forest.set_scratch_pos(30, -158)
+	forest.scale = Vector2.ONE
+	forest.set_scratch_pos(TREE_X, TREE_CUT_Y)
+
+	## 根元の 1 つ。切っても残り、倒れない。
+	_build_stump()
 
 	cut_mark.visible = false
 	cut_mark.set_scratch_pos(70, -130)
@@ -203,6 +240,8 @@ func start_scene3() -> void:
 	river.build_gapped()
 
 	forest.visible = false
+	if is_instance_valid(_stump):
+		_stump.visible = false
 	cut_mark.visible = false
 	_clear_soil()
 
@@ -251,7 +290,7 @@ func _process_scene2() -> void:
 
 	## 斧を持って木木木 に近づきスペース → 1 回切る。
 	## 判定は勇者基準（斧は構えの分だけ離れているため）。
-	if Game.got_axe and hero.touching(forest) and Input.is_action_pressed("ui_accept"):
+	if Game.got_axe and _touching_tree() and Input.is_action_pressed("ui_accept"):
 		Game.cut_count += 1
 		_show_cut_mark()
 
@@ -332,8 +371,8 @@ func _show_cut_mark() -> void:
 ## 別の字を新しく出すのではなく、振った結果の「切」がそのまま
 ## 傷になることで、切った跡だと分かるようにしている。
 func _drive_cut_into_tree() -> void:
-	## 木の根元。ここに切り込みが刻まれ、切るほど深く（大きく）なる。
-	## forest は pivot が (0.5, 1.0) なので、位置がそのまま根元にあたる。
+	## 切り口。下から 1 つ目と 2 つ目の境で、ここに切り込みが刻まれる。
+	## forest は pivot が (0.5, 1.0) なので、位置がそのまま切り口にあたる。
 	var target := forest.position
 
 	var from := cut_mark.position
@@ -408,11 +447,14 @@ func _place_swinging_axe(x: float) -> void:
 ## 木木木 が揺れて倒れ、シーン 3 へ。
 func _fell_tree() -> void:
 	Game.cut_count = 0
-	## 50 回小刻みに揺れる。
+	## 50 回小刻みに揺れる。倒れるのは切り口から上だけなので、
+	## 根元はその場に立ったまま動かさない。
+	var base_x := forest.position.x
 	for i in 50:
-		forest.position.x += randf_range(-1.0, 1.0)
+		forest.position.x = base_x + randf_range(-1.0, 1.0)
 		await get_tree().process_frame
-	## 15 度ずつ 6 回、左に倒れる。
+	forest.position.x = base_x
+	## 15 度ずつ 6 回、切り口を軸に左へ倒れる。
 	for i in 6:
 		forest.rotation -= deg_to_rad(15.0)
 		await get_tree().create_timer(0.1).timeout
@@ -522,9 +564,8 @@ func _confirm() -> void:
 		_restart()
 
 func _unhandled_input(event: InputEvent) -> void:
-	## Esc はいつでもタイトルへ戻れる。
-	if event is InputEventKey and event.pressed and not event.echo \
-			and event.keycode == KEY_ESCAPE:
+	## Esc（スマホでは「戻」ボタン）でいつでもタイトルへ戻れる。
+	if event.is_action_pressed("ui_cancel"):
 		## 動いている演出を止めてから抜ける。
 		## 止めないと、解放されたノードを触りにいって固まる。
 		_leaving = true

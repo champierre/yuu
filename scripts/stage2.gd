@@ -78,10 +78,12 @@ func _ready() -> void:
 	Game.stage_no = 2
 
 	_setup_colors()
-	Effects.show_escape_hint(self)   ## 左上に「Esc でタイトルに戻る」
 	## 操作ボタンは、指で触れる機械のときだけ出す。
+	## そのときは「戻」ボタンから帰れるので、Esc の案内は出さない。
 	if TouchPad.needed():
 		add_child(TouchPad.new())
+	else:
+		Effects.show_escape_hint(self)
 	start_scene1()
 	_busy = true
 	await get_tree().create_timer(1.0).timeout
@@ -632,9 +634,8 @@ func _to_title() -> void:
 	get_tree().change_scene_to_file("res://scenes/title.tscn")
 
 func _unhandled_input(event: InputEvent) -> void:
-	## Esc はいつでもタイトルへ戻れる。
-	if event is InputEventKey and event.pressed and not event.echo \
-			and event.keycode == KEY_ESCAPE:
+	## Esc（スマホでは「戻」ボタン）でいつでもタイトルへ戻れる。
+	if event.is_action_pressed("ui_cancel"):
 		_to_title()
 		return
 	if not _can_restart:
