@@ -46,7 +46,8 @@ func _build() -> void:
 
 	## 操作説明。
 	var keys := KanjiSprite.new()
-	keys.text = "↑↓←→ で移動　スペースで調べる・アクション"
+	## 遊ぶ機械に合わせて呼び名を変える（キーボードか、画面のボタンか）。
+	keys.text = "%s で移動　%sで調べる・アクション" % [TouchPad.move_name(), TouchPad.accept_name()]
 	keys.color = COL_SUB
 	keys.font_size = 14
 	add_child(keys)
@@ -54,7 +55,7 @@ func _build() -> void:
 
 	## 点滅する案内。
 	_hint = KanjiSprite.new()
-	_hint.text = "スペースキーではじめる"
+	_hint.text = "%sではじめる" % TouchPad.accept_key_name()
 	_hint.color = COL_HINT
 	_hint.font_size = 16
 	add_child(_hint)

@@ -500,7 +500,7 @@ func _show_restart_hint() -> void:
 	if _left():
 		return
 	_restart_hint = KanjiSprite.new()
-	_restart_hint.text = "スペースキーでもう一度"
+	_restart_hint.text = "%sでもう一度" % TouchPad.accept_key_name()
 	_restart_hint.color = COL_SUB
 	_restart_hint.font_size = 16
 	_restart_hint.z_index = 11
@@ -518,7 +518,7 @@ func _show_next_stage_hint() -> void:
 	if _left():
 		return
 	_restart_hint = KanjiSprite.new()
-	_restart_hint.text = "スペースキーで次のステージへ"
+	_restart_hint.text = "%sで次のステージへ" % TouchPad.accept_key_name()
 	_restart_hint.color = COL_SUB
 	_restart_hint.font_size = 16
 	_restart_hint.z_index = 11

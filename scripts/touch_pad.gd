@@ -178,3 +178,16 @@ func _send(action: String, pressed: bool) -> void:
 	## 押している間ずっと押されたことにするため、強さも渡す。
 	ev.strength = 1.0 if pressed else 0.0
 	Input.parse_input_event(ev)
+
+## 決定ボタンの呼び名。文の途中で使う（「〜で調べる」）。
+## キーボードなら「スペース」、指で遊ぶなら画面の「押」ボタン。
+static func accept_name() -> String:
+	return "「押」" if needed() else "スペース"
+
+## 決定ボタンの呼び名。文の頭で使う（「〜ではじめる」）。
+static func accept_key_name() -> String:
+	return "「押」ボタン" if needed() else "スペースキー"
+
+## 移動の呼び名。
+static func move_name() -> String:
+	return "「上下左右」" if needed() else "↑↓←→"

@@ -946,9 +946,9 @@ func _finish() -> void:
 		return
 
 	if Game.stage_no < Game.STAGE_MAX:
-		_show_end_hint("スペースキーで次のステージへ")
+		_show_end_hint("%sで次のステージへ" % TouchPad.accept_key_name())
 	else:
-		_show_end_hint("スペースキーでもう一度")
+		_show_end_hint("%sでもう一度" % TouchPad.accept_key_name())
 
 func _show_end_hint(text: String) -> void:
 	## 途中でタイトルへ抜けていたら、もう何もしない。
