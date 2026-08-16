@@ -21,6 +21,55 @@ var _leaving := false        ## この場面を出ていく最中（演出を止
 var _can_restart := false    ## クリア後、決定を受け付けるか
 var _restart_hint: KanjiSprite
 
+## 決定ボタンの「押した瞬間」を見るための記録。
+## 3 つのステージが同じことをしていたので、ここに 1 つだけ持つ。
+var _act_was_down := false    ## 前のコマで押されていたか
+var _act_just_pressed := false ## このコマで押された瞬間か
+
+# ---------------------------------------------------------------- 決定ボタン
+
+## 決定ボタンの上げ下げを見て、「押した瞬間」を記録する。
+## 各ステージは _process の頭でこれを 1 回だけ呼び、
+## 使うときは act_just_pressed() を聞く。
+##
+## 毎コマ呼ぶのが要点。使う側（宝箱に重なったとき等）で見ると、
+## 条件に合わない間は記録が更新されず、離したのを見落とす。
+##
+## `busy` の間は「押した瞬間」にしない。そこで拾うとその 1 回が
+## 使われないまま消え、遊ぶ人には「1 回目が効かなかった」と見える。
+## ただし押しっぱなしの記録だけは更新する。さもないと演出明けに
+## 記録が古いままになり、次の一手が出せなくなる（落とし穴 12）。
+func update_act(busy: bool) -> void:
+	var down := act_down()
+	if busy:
+		_act_was_down = down
+		_act_just_pressed = false
+		return
+	_act_just_pressed = down and not _act_was_down
+	_act_was_down = down
+	## 画面のボタンから押されたぶんも拾う。
+	## パッドが送る合図は次のコマまで届かないので、
+	## それだけを見ていると 1 回目の押下を取りこぼす。
+	if TouchPad.take_just_pressed("ui_accept"):
+		_act_just_pressed = true
+
+## いま決定ボタンが押されているか（押している間ずっと true）。
+func act_down() -> bool:
+	return Input.is_action_pressed("ui_accept")
+
+## このコマで決定ボタンが押された瞬間か。
+func act_just_pressed() -> bool:
+	return _act_just_pressed
+
+## クリアしたあとの決定ボタン。押されていれば次へ進める。
+##
+## _unhandled_input は入力があったときしか呼ばれず、
+## パッドが送る合図では呼ばれないことがあるので、
+## クリア後も毎コマここで見ておく。
+func update_finished_act() -> void:
+	if TouchPad.take_just_pressed("ui_accept"):
+		_confirm()
+
 # ---------------------------------------------------------------- 入力
 
 func _unhandled_input(event: InputEvent) -> void:

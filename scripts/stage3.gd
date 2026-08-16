@@ -92,8 +92,6 @@ const TRAIL_SKIP := 9
 @onready var goal: KanjiSprite = $Goal
 
 var _shoot_was_down := false ## 前のコマでスペースが押されていたか
-var _act_was_down := false  ## 宝箱用。前のコマで押されていたか
-var _act_just_pressed := false ## 宝箱用。このコマで押された瞬間か
 var _charge := 0.0          ## 引き絞り具合（0=細い 〜 1=引き絞りきった）
 var _shooting := false      ## 射っている最中か（弓の位置は演出側が決める）
 var _await_release := false ## 一度キーを離すまで引き絞りを始めない
@@ -320,29 +318,16 @@ func _clear_worm() -> void:
 
 func _process(delta: float) -> void:
 	if _finished:
-		## クリアしたあとも、画面のボタンからの押下だけは見ておく。
-		## _unhandled_input は入力があったときしか呼ばれず、
-		## パッドが送る合図では呼ばれないことがあるため。
-		if TouchPad.take_just_pressed("ui_accept"):
-			_confirm()
+		update_act(true)
+		update_finished_act()
 		return
 	## 演出中でもキーの上げ下げは見ておく。
 	## ここを止めると、演出が明けたときに「押しっぱなし」の記録が
 	## 古いままになり、次の一射が出せなくなる。
-	var shoot_down := Input.is_action_pressed("ui_accept")
+	var shoot_down := act_down()
 
-	## 決定ボタンが「押された瞬間」か。宝箱を開けるのに使う。
-	## 演出中は拾わない。そこで拾うとその 1 回が使われないまま消え、
-	## 遊ぶ人には「1 回目が効かなかった」と見える。
-	if _busy:
-		_act_was_down = shoot_down
-		_act_just_pressed = false
-	else:
-		_act_just_pressed = shoot_down and not _act_was_down
-		_act_was_down = shoot_down
-		## 画面のボタンから押されたぶんも拾う。
-		if TouchPad.take_just_pressed("ui_accept"):
-			_act_just_pressed = true
+	## 決定ボタンの「押した瞬間」は宝箱を開けるのに使う（中身は StageBase）。
+	update_act(_busy)
 
 	## 蟲は演出中も動かし続ける。
 	## ここを止めると、矢が飛んでいる間だけ蟲が固まって見えてしまう。
@@ -566,7 +551,7 @@ func _try_take_bow() -> bool:
 	## 「押した瞬間」だけ開ける。押しっぱなしを見てしまうと、
 	## ボタンを押したまま宝箱の上を通っただけで開いてしまう
 	## （スマホでは移動ボタンを押しながら歩くので、よく起きる）。
-	if hero.touching(chest) and _act_just_pressed:
+	if hero.touching(chest) and act_just_pressed():
 		chest.text = "空箱"
 		Game.got_bow = true
 		bow.visible = true
@@ -596,7 +581,7 @@ func _follow_bow() -> void:
 ## 押している間は引き絞り、離した瞬間に放つ。
 ## 引き絞りは演出を待たず毎フレーム進めるので、太くなっていく様子が見える。
 func _update_charge(delta: float) -> void:
-	var down := Input.is_action_pressed("ui_accept")
+	var down := act_down()
 
 	## 宝箱を開けた押し下げを引き継がない。離すまでは何もしない。
 	if _await_release:

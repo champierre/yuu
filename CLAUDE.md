@@ -139,12 +139,34 @@ if not await wait(0.5): return      ## 0.5 秒待つ
 
 ### 12. 「押した瞬間」と「押している間」を区別する
 
-- 拾う・調べるは**押した瞬間**（自前でエッジを見る）
+- 拾う・調べるは**押した瞬間**
 - 弓を引き絞るのは**押している間**
 
-`_busy` で `_process` を止めるとキーの上げ下げを見逃すので、
-`_busy` の間もキーの状態だけは更新しておく（さもないと演出明けに
+**決定ボタンは `StageBase` に集めてある。ステージ側で `Input` を直に見ない。**
+
+```gdscript
+func _process(_delta: float) -> void:
+	if _finished:
+		update_act(true)
+		update_finished_act()   ## クリア後は決定で次へ
+		return
+	update_act(_busy)           ## 毎コマ 1 回だけ呼ぶ
+	if _busy:
+		return
+	...
+	if act_just_pressed():      ## 使うときに聞く
+		_try_chest()
+```
+
+`update_act()` を**毎コマ呼ぶ**のが要点。使う側（宝箱に重なったとき等）で
+見ると、条件に合わない間は記録が更新されず、離したのを見落とす。
+
+`_busy` の間もキーの状態だけは更新される（さもないと演出明けに
 「押しっぱなし」の記録が古いままになり、次の一手が出せなくなる）。
+
+弓の「引いて離す」だけはステージ3 が自前で持っている
+（`_shoot_was_down` / `_await_release`）。押した瞬間ではなく
+離した瞬間に放つので、上の仕組みとは別のものが要るため。
 
 ### 13. Web 版は入力割り当てが要る
 
@@ -193,6 +215,10 @@ godot --headless --script path/to/test.gd
   `root.add_child(instantiate())` だと `@onready var x: KanjiSprite` が `Nil` になる
   （`--script` モードでは `class_name` の型注釈が解決されないことがある）
 - autoload は `root.get_node("Game")` で取る（`Game` の識別子は解決されない）
+- **ゲーム側でも、`Game` と識別子で書くとテストから読み込めなくなる。**
+  定数や静的関数（`to_godot` など）は `preload("res://scripts/game.gd")` から呼ぶ。
+  状態を触るとき（`reset()` など）だけ `get_tree().root.get_node_or_null("Game")` を使う。
+  `class_name Game` は付けられない（autoload と名前がぶつかる）
 - テストの中で `KanjiSprite.new()` もできない。既にあるノードを借りるか、
   ゲーム側の関数に作らせる
 - キーは `Input.parse_input_event()` で送る

@@ -58,7 +58,6 @@ var _villager_lines := {}    ## 村人ごとに、どちらのセリフを言う
 var _talk: KanjiSprite       ## 今出ているセリフ
 var _talk_until := 0.0       ## セリフを消す時刻
 var _wander_timer := 0.0
-var _act_was_down := false   ## 調べるキーの押しっぱなしを 1 回として扱う
 var _thief_gone := false     ## 盗人は金を奪うと去る
 
 func _ready() -> void:
@@ -181,23 +180,21 @@ func _build_villagers() -> void:
 # ---------------------------------------------------------------- 毎フレーム処理
 
 func _process(delta: float) -> void:
+	## 決定ボタンの上げ下げは毎コマ見ておく（中身は StageBase）。
 	if _finished:
-		## クリアしたあとも、画面のボタンからの押下だけは見ておく。
-		## _unhandled_input は入力があったときしか呼ばれず、
-		## パッドが送る合図では呼ばれないことがあるため。
-		if TouchPad.take_just_pressed("ui_accept"):
-			_confirm()
+		update_act(true)
+		update_finished_act()
 		return
 	_fade_talk(delta)
+	update_act(_busy)
 	if _busy:
-		_act_was_down = Input.is_action_pressed("ui_accept")
 		return
 
 	_wander(delta)
 
 	## 門は開いたら通れるようにする（当たり判定から外す）。
 	## 宝箱・門番・盗人・村人は素通りでき、触れると話が起きるだけ。
-	if _act_pressed():
+	if act_just_pressed():
 		_try_chest()
 
 	_meet_keeper()
@@ -211,18 +208,6 @@ func _process(delta: float) -> void:
 	## 門が開いていれば、目標へ行ける。
 	if Game.gate_open and hero.touching(goal):
 		_finish()
-
-## 調べるキーを「押した瞬間」だけ拾う。
-func _act_pressed() -> bool:
-	var down := Input.is_action_pressed("ui_accept")
-	var just := down and not _act_was_down
-	_act_was_down = down
-	## 画面のボタンから押されたぶんも拾う。
-	## パッドが送る合図は次のコマまで届かないので、
-	## それだけを見ていると 1 回目の押下を取りこぼす。
-	if TouchPad.take_just_pressed("ui_accept"):
-		just = true
-	return just
 
 ## 村人と盗人が街をうろつく。
 func _wander(delta: float) -> void:
