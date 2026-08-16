@@ -31,7 +31,7 @@ jobs:
     container:
       image: barichello/godot-ci:4.7.1
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       # フォントの取り込みと class_name の登録をここで済ませる。
       # .godot/ は git に入れていないので、CI では空から作る必要がある。
       # これをしないとフォントが読めず、KanjiSprite も見つからないまま
@@ -53,7 +53,7 @@ jobs:
     container:
       image: barichello/godot-ci:4.7.1
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: エクスポートテンプレートを配置
         run: |
