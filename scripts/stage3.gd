@@ -750,6 +750,10 @@ func _is_tail(s) -> bool:
 
 ## 尾に当たった。節が 1 つ減り、新しい末尾が尾になる。
 func _cut_tail(during_emerge: bool = false) -> void:
+	## もう落とすものが無ければ何もしない。
+	## 最後の尾を落とした直後に、もう一本当たるとここへ来てしまう。
+	if _joints.is_empty():
+		return
 	var tail: KanjiSprite = _joints.pop_back()
 	var p := tail.position
 	## 当たった所で尾が一瞬弾けてから消える。手応えを出すため。
@@ -811,13 +815,18 @@ func _defeat_worm() -> void:
 	var v := 0.0
 	var fall_t := 0.0
 	while fall_t < HEAD_FALL_TIME:
+		## 落ちている途中で頭が片づけられることがある
+		## （やり直しや場面の切り替え）。触りにいくと落ちるので確かめる。
+		if not Effects.alive(head):
+			break
 		var d := get_process_delta_time()
 		fall_t += d
 		v += 900.0 * d
 		head.position.y += v * d
 		head.rotation += d * 2.0
 		await get_tree().process_frame
-	head.queue_free()
+	if is_instance_valid(head):
+		head.queue_free()
 
 	## 穴が目標に変わる。蟲がいなくなって、ようやく先へ行ける。
 	await _hole_becomes_goal()
