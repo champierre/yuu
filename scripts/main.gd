@@ -64,6 +64,8 @@ var _finished := false      ## クリア後は完全に停止する
 var _can_restart := false   ## クリア後、やり直しを受け付けるか
 var _can_advance := false   ## クリア後、次のステージへ進むのを受け付けるか
 var _leaving := false       ## この場面を出ていく最中か（演出を止める合図）
+var _act_was_down := false  ## 前のコマで決定ボタンが押されていたか
+var _act_just_pressed := false ## このコマで押された瞬間か
 var _scar: KanjiSprite = null   ## 切り口の切り込み（1 つだけ。切るほど大きくなる）
 var _stump: KanjiSprite = null  ## 根元の木。倒れずに残る
 var _restart_hint: KanjiSprite  ## 「もう一度」の案内
@@ -266,6 +268,13 @@ func start_scene3() -> void:
 # ---------------------------------------------------------------- 毎フレーム処理
 
 func _process(_delta: float) -> void:
+	## 決定ボタンが「押された瞬間」かを毎コマ見ておく。
+	## 使う側（宝箱・木を切る）で見ると、条件に合わない間は
+	## 更新されず、離したことを見落としてしまう。
+	var act_down := Input.is_action_pressed("ui_accept")
+	_act_just_pressed = act_down and not _act_was_down
+	_act_was_down = act_down
+
 	if _finished or _busy:
 		return
 	match Game.scene_no:
@@ -290,7 +299,9 @@ func _process_scene2() -> void:
 
 	## 斧を持って木木木 に近づきスペース → 1 回切る。
 	## 判定は勇者基準（斧は構えの分だけ離れているため）。
-	if Game.got_axe and _touching_tree() and Input.is_action_pressed("ui_accept"):
+	## 宝箱と同じで「押した瞬間」だけ切る。押しっぱなしを見ると、
+	## ボタンを押したまま木の前を通っただけで切れてしまう。
+	if Game.got_axe and _touching_tree() and _act_just_pressed:
 		Game.cut_count += 1
 		_show_cut_mark()
 
@@ -313,7 +324,10 @@ func _on_hero_reached_right_edge() -> void:
 func _try_take_axe() -> void:
 	if Game.got_axe or not chest.visible:
 		return
-	if hero.touching(chest) and Input.is_action_pressed("ui_accept"):
+	## 「押した瞬間」だけ開ける。押しっぱなしを見てしまうと、
+	## ボタンを押したまま宝箱の上を通っただけで開いてしまう
+	## （スマホでは移動ボタンを押しながら歩くので、よく起きる）。
+	if hero.touching(chest) and _act_just_pressed:
 		chest.text = "空箱"
 		Game.got_axe = true
 		axe.visible = true

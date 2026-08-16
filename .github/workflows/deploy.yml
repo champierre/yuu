@@ -20,7 +20,20 @@ env:
   GODOT_VERSION: 4.7.1
 
 jobs:
+  # 先にテストを通す。落ちたら公開しない。
+  test:
+    runs-on: ubuntu-latest
+    container:
+      image: barichello/godot-ci:4.7.1
+    steps:
+      - uses: actions/checkout@v4
+      - name: テストを走らせる
+        run: |
+          chmod +x tests/run_all.sh
+          ./tests/run_all.sh
+
   build:
+    needs: test
     runs-on: ubuntu-latest
     container:
       image: barichello/godot-ci:4.7.1

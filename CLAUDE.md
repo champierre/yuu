@@ -145,6 +145,20 @@ Web のときは `JavaScriptBridge` でブラウザ自身に聞いている。
 `TouchPad.accept_name()` / `accept_key_name()` / `move_name()` で決まる。
 **文言を足すときは直書きせず、ここを通す。**
 
+## 不具合を直すときは TDD で
+
+**必ず「先に失敗するテストを書く」こと。**
+
+1. その不具合を捉えるテストを `tests/` に足す
+2. 走らせて**失敗することを確かめる**（ここを飛ばさない。
+   失敗しないテストは、直っていなくても通ってしまう役に立たないテスト）
+3. 直す
+4. 走らせて通ることを確かめる
+5. 他のテストも全部走らせ、巻き添えで壊していないか見る
+
+順番が大事。先に直してしまうと、そのテストが本当に不具合を
+捉えられているのか分からなくなる。
+
 ## テストのしかた
 
 ブラウザ自動操作では `Input.is_action_pressed`（押しっぱなし判定）を再現できない。
@@ -209,9 +223,25 @@ for i in 400:
 godot --headless --export-release "Web" build/web/index.html
 ```
 
+## 進め方
+
+**`main` へ直接 push はできない。必ずブランチを切って PR を出す。**
+
+```sh
+git checkout -b 直すことの名前
+# 直す
+./tests/run_all.sh        # 出す前に手元で通す
+git push -u origin 直すことの名前
+gh pr create
+```
+
+PR の間はテストが走らない（作業中は落ちて当たり前なので）。
+**手元で `./tests/run_all.sh` を通してから出すこと。**
+
 ## デプロイ
 
-`main` への push で GitHub Actions が Web 版を書き出し、GitHub Pages へ公開する。
+`main` に入ると GitHub Actions がテストを走らせ、通れば Web 版を書き出して
+GitHub Pages へ公開する。テストが落ちたら公開されない。
 公開先: https://champierre.github.io/yuu/
 
 **直したつもりで直っていないときは、まず push できているかを見る。**
