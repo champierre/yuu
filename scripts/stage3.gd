@@ -63,8 +63,9 @@ const ARROW_LIFE := 2.0
 const ARROW_FADE_TIME := 0.15
 ## 矢が出る位置。勇者から、飛ぶ向きにこれだけ離れた所から出す。
 const ARROW_MUZZLE_DIST := 18.0
-## 矢の当たる広さ。蟲は動くので、矩形が触れるかだけでは狙いが厳しすぎる。
-const ARROW_REACH := 22.0
+## 矢の当たる広さ。矩形の接触に少しだけ足す程度にする。
+## 大きくすると、相手から離れた所で矢が消えて当たった感じがしなくなる。
+const ARROW_REACH := 10.0
 
 ## 蟲の節の数（頭を除く）。最後の 1 つが弱点の「尾」。
 const JOINT_COUNT := 7
@@ -729,6 +730,9 @@ func _is_tail(s) -> bool:
 func _cut_tail(during_emerge: bool = false) -> void:
 	var tail: KanjiSprite = _joints.pop_back()
 	var p := tail.position
+	## 当たった所で尾が一瞬弾けてから消える。手応えを出すため。
+	tail.scale = Vector2.ONE * 1.4
+	await get_tree().process_frame
 	tail.queue_free()
 
 	## 切れた所から破片を飛ばす。
@@ -861,10 +865,15 @@ func _fly_arrow(targets: Array, dir: Vector2 = Vector2.UP, k: float = 1.0):
 		for obj in targets:
 			if obj == null or not is_instance_valid(obj) or not obj.visible:
 				continue
-			## 動く相手を狙うので、矩形が触れるかだけだと厳しすぎる。
-			## 少し余裕をもたせ、かすった程度でも当たりとする。
+			## 矩形が触れたら当たり。
+			## 中心からの距離でも見るが、離れた所で消えると
+			## 「当たる手前で消えた」と見えてしまうので、ごく短くしている。
 			if a.touching(obj) \
 					or a.position.distance_to(obj.position) < ARROW_REACH:
+				## 当たった所まで矢を進めてから消す。
+				## 手前で消えると当たった感じがしないため。
+				a.position = obj.position
+				await get_tree().process_frame
 				a.queue_free()
 				return obj
 
