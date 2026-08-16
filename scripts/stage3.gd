@@ -59,6 +59,8 @@ const ARROW_RANGE_MIN := 15.0
 const ARROW_RANGE_MAX := 330.0
 ## 力尽きたあと、落ちきるまでの猶予。
 const ARROW_LIFE := 2.0
+## 力尽きた矢が消えるまでの時間 (秒)。短くして、さっと片づける。
+const ARROW_FADE_TIME := 0.15
 ## 矢が出る位置。勇者から、飛ぶ向きにこれだけ離れた所から出す。
 const ARROW_MUZZLE_DIST := 18.0
 ## 矢の当たる広さ。蟲は動くので、矩形が触れるかだけでは狙いが厳しすぎる。
@@ -846,10 +848,13 @@ func _fly_arrow(targets: Array, dir: Vector2 = Vector2.UP, k: float = 1.0):
 			## 戻すなら、置いた残像を自分で持っておいて、矢が消えるときに
 			## まとめて捨てる形にするのが確実。
 		else:
-			## 力尽きた。あとは落ちるだけ。残像はもう置かない。
-			fall += 900.0 * d
+			## 力尽きた。あとは落ちて消えるだけ。
+			## 消えるのが遅いと、飛距離の短い矢ほど「いつまでも残っている」
+			## と見えてしまう（飛ぶのは一瞬なのに、そのあと長く漂うため）。
+			## 勢いよく落として、さっと消す。
+			fall += 1600.0 * d
 			a.position.y += fall * d
-			a.modulate.a = maxf(a.modulate.a - d * 2.0, 0.0)
+			a.modulate.a = maxf(a.modulate.a - d / ARROW_FADE_TIME, 0.0)
 			if a.modulate.a <= 0.0:
 				break
 
