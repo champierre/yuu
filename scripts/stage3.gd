@@ -1,4 +1,4 @@
-extends Node2D
+extends StageBase
 ## ステージ 3「蟲」。
 ##
 ## 行く手を塞ぐ相手そのものを射て、道を開ける話。
@@ -12,12 +12,8 @@ const COL_WORM := Color("#c2559b")    ## 蟲の頭（桃）
 const COL_JOINT := Color("#7a4fa3")   ## 節（紫）
 const COL_TAIL := Color("#3f9e44")    ## 尾（弱点なので目立たせる）
 const COL_BOW := Color("#66421f")     ## 弓
-const COL_CHEST := Color("#bb3023")   ## 宝箱
 const COL_BOW_FULL := Color("#c2559b") ## 引き絞りきった弓（もう放てる合図）
 const COL_ARROW := Color("#555555")   ## 矢
-const COL_GOAL := Color("#000000")    ## 目標
-const COL_DONE := Color("#3f9e44")    ## 達成
-const COL_SUB := Color("#555555")     ## 案内文字
 const COL_HARD := Color("#a7a7a7")    ## 弾かれた印
 const COL_HOLE := Color("#333333")   ## 穴
 const COL_HURT := Color("#bb3023")   ## やられた印
@@ -36,8 +32,6 @@ const EXHAUST_TIME := 1.4
 ## 弓を構える位置（勇者から見て右上）。ステージ 1 の斧と同じ考え方。
 const BOW_OFFSET := Vector2(16, -16)
 
-## 加速のしかた。Effects.ease_k に渡すので、あちらの enum と並び順を合わせてある。
-enum { EASE_IN, EASE_OUT }
 
 ## 引き絞りきるまでの時間。押しっぱなしでこの秒数かけて満ちる。
 const CHARGE_TIME := 0.8
@@ -97,15 +91,10 @@ const TRAIL_SKIP := 9
 @onready var chest: KanjiSprite = $Chest
 @onready var goal: KanjiSprite = $Goal
 
-var _busy := false          ## 演出中は入力を無視する
-var _finished := false      ## クリア後は完全に停止する
-var _can_restart := false   ## クリア後、次へ進むのを受け付けるか
-var _restart_hint: KanjiSprite
 var _shoot_was_down := false ## 前のコマでスペースが押されていたか
 var _act_was_down := false  ## 宝箱用。前のコマで押されていたか
 var _act_just_pressed := false ## 宝箱用。このコマで押された瞬間か
 var _charge := 0.0          ## 引き絞り具合（0=細い 〜 1=引き絞りきった）
-var _leaving := false       ## この場面を出ていく最中か（演出を止める合図）
 var _shooting := false      ## 射っている最中か（弓の位置は演出側が決める）
 var _await_release := false ## 一度キーを離すまで引き絞りを始めない
 var _hold_time := 0.0       ## 引き絞りきったまま粘っている時間
@@ -539,7 +528,7 @@ func _advance_worm_head(delta: float) -> void:
 	if _emerging < 1.0:
 		_emerging = minf(_emerging + delta / EMERGE_MOVE_TIME, 1.0)
 		var hole := Game.to_godot(0, HOLE_Y)
-		_worm_head.position = hole.lerp(target, Effects.ease_k(_emerging, EASE_OUT))
+		_worm_head.position = hole.lerp(target, Effects.ease_k(_emerging, Effects.EASE_OUT))
 	else:
 		_worm_head.position = target
 	## 軌跡を刻む。
@@ -761,6 +750,10 @@ func _is_tail(s) -> bool:
 
 ## 尾に当たった。節が 1 つ減り、新しい末尾が尾になる。
 func _cut_tail(during_emerge: bool = false) -> void:
+	## もう落とすものが無ければ何もしない。
+	## 最後の尾を落とした直後に、もう一本当たるとここへ来てしまう。
+	if _joints.is_empty():
+		return
 	var tail: KanjiSprite = _joints.pop_back()
 	var p := tail.position
 	## 当たった所で尾が一瞬弾けてから消える。手応えを出すため。
@@ -822,13 +815,18 @@ func _defeat_worm() -> void:
 	var v := 0.0
 	var fall_t := 0.0
 	while fall_t < HEAD_FALL_TIME:
+		## 落ちている途中で頭が片づけられることがある
+		## （やり直しや場面の切り替え）。触りにいくと落ちるので確かめる。
+		if not Effects.alive(head):
+			break
 		var d := get_process_delta_time()
 		fall_t += d
 		v += 900.0 * d
 		head.position.y += v * d
 		head.rotation += d * 2.0
 		await get_tree().process_frame
-	head.queue_free()
+	if is_instance_valid(head):
+		head.queue_free()
 
 	## 穴が目標に変わる。蟲がいなくなって、ようやく先へ行ける。
 	await _hole_becomes_goal()
@@ -939,7 +937,7 @@ func _release_bow() -> void:
 	while t < RELEASE_TIME:
 		t += get_process_delta_time()
 		var p: float = clampf(t / RELEASE_TIME, 0.0, 1.0)
-		var e := Effects.ease_k(p, EASE_OUT)
+		var e := Effects.ease_k(p, Effects.EASE_OUT)
 		## 行き過ぎてから戻ることで、放った反動に見せる。
 		var overshoot := sin(p * PI) * 0.18
 		bow.position = hero.position + BOW_OFFSET
@@ -979,63 +977,4 @@ func _finish() -> void:
 		_show_end_hint("%sで次のステージへ" % TouchPad.accept_key_name())
 	else:
 		_show_end_hint("%sでもう一度" % TouchPad.accept_key_name())
-
-func _show_end_hint(text: String) -> void:
-	## 途中でタイトルへ抜けていたら、もう何もしない。
-	if _left():
-		return
-	_restart_hint = KanjiSprite.new()
-	_restart_hint.text = text
-	_restart_hint.color = COL_SUB
-	_restart_hint.font_size = 16
-	_restart_hint.z_index = 11
-	add_child(_restart_hint)
-	_restart_hint.set_scratch_pos(0, -60)
-
-	## この瞬間に押していたキーを拾わないよう、少し待ってから受け付ける。
-	await get_tree().create_timer(0.5).timeout
-	_can_restart = true
-	Effects.blink(_restart_hint, func(): return _can_restart)
-
-## タイトル画面へ戻る。
-## この場面をもう離れたか。演出は await をまたぐので、
-## 続きを進める前にこれで確かめる。
-func _left() -> bool:
-	return _leaving or not is_inside_tree()
-
-func _to_title() -> void:
-	## 動いている演出を止めてから抜ける。
-	## 矢もクリア演出も、止めないと解放されたノードを触りにいって固まる。
-	_leaving = true
-	_finished = true
-	_can_restart = false
-	Game.reset()
-	get_tree().change_scene_to_file("res://scenes/title.tscn")
-
-## 決定キー。次のステージがあれば進み、無ければ最初からやり直す。
-func _confirm() -> void:
-	if not _can_restart:
-		return
-	_can_restart = false
-	if Game.stage_no < Game.STAGE_MAX:
-		Game.goto_stage(get_tree(), Game.stage_no + 1)
-	else:
-		Game.reset()
-		get_tree().change_scene_to_file(Game.STAGE_SCENES[1])
-
-func _unhandled_input(event: InputEvent) -> void:
-	## Esc（スマホでは「戻」ボタン）でいつでもタイトルへ戻れる。
-	if event.is_action_pressed("ui_cancel"):
-		_to_title()
-		return
-	if not _can_restart:
-		return
-	## 画面を触って進められるのは、指で遊ぶ機械ではないときだけ。
-	## 指で遊ぶ機械では、すべて画面のボタンで操作する。
-	## 触っただけで進むと、意図しない所で先へ行ってしまう。
-	if event is InputEventMouseButton and event.pressed:
-		if not TouchPad.needed():
-			_confirm()
-	elif event.is_action_pressed("ui_accept"):
-		_confirm()
 

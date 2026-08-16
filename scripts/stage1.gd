@@ -1,9 +1,8 @@
-extends Node2D
+extends StageBase
 ## ゲーム全体の進行。Scratch のメッセージ (start1 / start1_2 / start1_3) を
 ## そのままシーン 1 / 2 / 3 として実装している。
 
 const COL_TREE := Color("#9e6a3f")   ## 木・木木木・倒木
-const COL_CHEST := Color("#bb3023")  ## 宝箱
 const COL_AXE := Color("#a7a7a7")    ## 斧
 const COL_CUT := Color("#ff7729")    ## 切
 const COL_SCAR := Color("#6b4423")   ## 木に残る切り込み
@@ -18,9 +17,6 @@ const TREE_BASE_Y := -158.0
 ## 切り口の高さ。木 1 つ分だけ上（ここから上の 3 つが倒れる）。
 const TREE_CUT_Y := TREE_BASE_Y + 30.0
 const COL_SOIL := Color("#6a302a")   ## 土
-const COL_GOAL := Color("#000000")   ## 目標
-const COL_DONE := Color("#3f9e44")   ## 達成
-const COL_SUB := Color("#555555")    ## 案内文字
 
 ## 斧を構える位置（勇者から見て右上）。
 const AXE_OFFSET := Vector2(16, -16)
@@ -31,9 +27,6 @@ const SWING_START_X := 26.0
 const SWING_HIT_X := -20.0
 ## 振っている間の高さ（勇者の肩の高さで水平に薙ぐ）。
 const SWING_Y := -10.0
-## 加速のしかた。等速だと機械的なので、場面ごとに緩急をつける。
-## 値は Effects.ease_k に渡すので、あちらの enum と並び順を合わせてある。
-enum { EASE_IN, EASE_OUT }
 
 ## この速さ (px/秒) で歪みが最大になる。
 const AXE_MAX_SPEED := 700.0
@@ -56,19 +49,13 @@ const SWING_RETURN_TIME := 0.30
 @onready var cut_mark: KanjiSprite = $CutMark
 @onready var soil: Node2D = $Soil
 
-var _busy := false          ## 演出中は入力を無視する
 var _swinging := false      ## 斧を振っている最中か
 var _trail := false         ## 振り抜き中だけ残像を出す
 var _axe_prev_x := 0.0      ## 歪みの計算用。直前のフレームの斧の x
-var _finished := false      ## クリア後は完全に停止する
-var _can_restart := false   ## クリア後、やり直しを受け付けるか
-var _can_advance := false   ## クリア後、次のステージへ進むのを受け付けるか
-var _leaving := false       ## この場面を出ていく最中か（演出を止める合図）
 var _act_was_down := false  ## 前のコマで決定ボタンが押されていたか
 var _act_just_pressed := false ## このコマで押された瞬間か
 var _scar: KanjiSprite = null   ## 切り口の切り込み（1 つだけ。切るほど大きくなる）
 var _stump: KanjiSprite = null  ## 根元の木。倒れずに残る
-var _restart_hint: KanjiSprite  ## 「もう一度」の案内
 
 func _ready() -> void:
 	Game.reset()   ## 起動時だけ全変数を初期化する（斧を含む）
@@ -368,11 +355,11 @@ func _show_cut_mark() -> void:
 	_axe_prev_x = AXE_OFFSET.x
 
 	## 1. 振りかぶり。ゆっくり右へ引きながら、最後にタメる（ease-out）。
-	await _swing_axe(AXE_OFFSET.x, SWING_START_X, SWING_WINDUP_TIME, EASE_OUT)
+	await _swing_axe(AXE_OFFSET.x, SWING_START_X, SWING_WINDUP_TIME, Effects.EASE_OUT)
 	## 2. 振り抜き。止まった状態から一気に加速する（ease-in）。
 	##    残像を置いて、水平に薙いだ軌跡を見せる。
 	_trail = true
-	await _swing_axe(SWING_START_X, SWING_HIT_X, SWING_STRIKE_TIME, EASE_IN)
+	await _swing_axe(SWING_START_X, SWING_HIT_X, SWING_STRIKE_TIME, Effects.EASE_IN)
 	_trail = false
 
 	## 命中の瞬間に「切」を表示する。
@@ -387,7 +374,7 @@ func _show_cut_mark() -> void:
 	## 3. 木に食い込んで急停止。少しめり込んで止まる。
 	await get_tree().create_timer(0.14).timeout
 	## 4. 引き抜いて構えに戻す。疲れた感じでゆっくり（ease-out）。
-	await _swing_axe(SWING_HIT_X, AXE_OFFSET.x, SWING_RETURN_TIME, EASE_OUT)
+	await _swing_axe(SWING_HIT_X, AXE_OFFSET.x, SWING_RETURN_TIME, Effects.EASE_OUT)
 	_swinging = false
 
 	await get_tree().create_timer(0.35).timeout
@@ -416,7 +403,7 @@ func _drive_cut_into_tree() -> void:
 		t += get_process_delta_time()
 		var k: float = clampf(t / dur, 0.0, 1.0)
 		## 勢いよく根元へ食い込む。
-		var e := Effects.ease_k(k, EASE_IN)
+		var e := Effects.ease_k(k, Effects.EASE_IN)
 		cut_mark.position = from.lerp(target, e)
 		cut_mark.scale = Vector2.ONE * lerpf(from_scale, 0.6, e)
 		await get_tree().process_frame
@@ -523,99 +510,7 @@ func _finish() -> void:
 
 	## 6. 次のステージがあればそちらへ誘い、無ければもう一度遊べるようにする。
 	if Game.stage_no < Game.STAGE_MAX:
-		_show_next_stage_hint()
+		_show_end_hint("%sで次のステージへ" % TouchPad.accept_key_name())
 	else:
-		_show_restart_hint()
-
-## クリア後の「もう一度」案内。点滅させ、スペースかクリックで最初から始める。
-func _show_restart_hint() -> void:
-	## 途中でタイトルへ抜けていたら、もう何もしない。
-	if _left():
-		return
-	_restart_hint = KanjiSprite.new()
-	_restart_hint.text = "%sでもう一度" % TouchPad.accept_key_name()
-	_restart_hint.color = COL_SUB
-	_restart_hint.font_size = 16
-	_restart_hint.z_index = 11
-	add_child(_restart_hint)
-	_restart_hint.set_scratch_pos(0, -60)
-
-	## この瞬間に押していたキーを拾わないよう、少し待ってから受け付ける。
-	await get_tree().create_timer(0.5).timeout
-	_can_restart = true
-	_blink_restart_hint()
-
-## クリア後の「次のステージへ」案内。_show_restart_hint と同じ作りで文言だけ違う。
-func _show_next_stage_hint() -> void:
-	## 途中でタイトルへ抜けていたら、もう何もしない。
-	if _left():
-		return
-	_restart_hint = KanjiSprite.new()
-	_restart_hint.text = "%sで次のステージへ" % TouchPad.accept_key_name()
-	_restart_hint.color = COL_SUB
-	_restart_hint.font_size = 16
-	_restart_hint.z_index = 11
-	add_child(_restart_hint)
-	_restart_hint.set_scratch_pos(0, -60)
-
-	## この瞬間に押していたキーを拾わないよう、少し待ってから受け付ける。
-	await get_tree().create_timer(0.5).timeout
-	_can_advance = true
-	_blink_restart_hint()
-
-## 案内をゆっくり点滅させる。やり直すか次へ進んだら止まる。
-func _blink_restart_hint() -> void:
-	Effects.blink(_restart_hint, func(): return _can_restart or _can_advance)
-
-## この場面をもう離れたか。演出は await をまたぐので、
-## 続きを進める前にこれで確かめる。
-func _left() -> bool:
-	return _leaving or not is_inside_tree()
-
-## 最初からやり直す。Game の変数も戻すので、斧を持っていない状態から始まる。
-func _restart() -> void:
-	if not _can_restart:
-		return
-	_can_restart = false
-	Game.reset()
-	## reload_current_scene() は current_scene が未設定だと失敗するので、
-	## 本編のシーンを名指しで読み直す。
-	get_tree().change_scene_to_file("res://scenes/stage1.tscn")
-
-## 次のステージへ進む。持ち物はここで捨てられる（reset_stage）。
-func _advance_stage() -> void:
-	if not _can_advance:
-		return
-	_can_advance = false
-	Game.goto_stage(get_tree(), Game.stage_no + 1)
-
-## クリア後の決定キー。次へ進めるならそちらを、無ければやり直しを行う。
-func _confirm() -> void:
-	if _can_advance:
-		_advance_stage()
-	elif _can_restart:
-		_restart()
-
-func _unhandled_input(event: InputEvent) -> void:
-	## Esc（スマホでは「戻」ボタン）でいつでもタイトルへ戻れる。
-	if event.is_action_pressed("ui_cancel"):
-		## 動いている演出を止めてから抜ける。
-		## 止めないと、解放されたノードを触りにいって固まる。
-		_leaving = true
-		_finished = true
-		_can_restart = false
-		_can_advance = false
-		Game.reset()
-		get_tree().change_scene_to_file("res://scenes/title.tscn")
-		return
-	if not _can_restart and not _can_advance:
-		return
-	## 画面を触って進められるのは、指で遊ぶ機械ではないときだけ。
-	## 指で遊ぶ機械では、すべて画面のボタンで操作する。
-	## 触っただけで進むと、意図しない所で先へ行ってしまう。
-	if event is InputEventMouseButton and event.pressed:
-		if not TouchPad.needed():
-			_confirm()
-	elif event.is_action_pressed("ui_accept"):
-		_confirm()
+		_show_end_hint("%sでもう一度" % TouchPad.accept_key_name())
 

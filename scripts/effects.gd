@@ -21,8 +21,12 @@ const BURST_COLORS := [
 ## その間 is_instance_valid は true を返すのに get_tree() は使えないので、
 ## 木の中にいることまで確かめないと落ちる。
 ## 演出はどれも await をまたぐので、再開のたびにこれで確かめる。
-static func alive(node: Node) -> bool:
-	return node != null and is_instance_valid(node) and node.is_inside_tree()
+## 引数に型を書いていないのは、解放済みのものを渡されることがあるため。
+## Node と書くと、その時点で型が合わずに落ちてしまう。
+static func alive(node) -> bool:
+	if node == null or not is_instance_valid(node):
+		return false
+	return node.is_inside_tree()
 
 ## 0〜1 の進み具合に緩急をつける。
 ## EASE_IN は「静→急」（止まった状態から一気に加速する）、
