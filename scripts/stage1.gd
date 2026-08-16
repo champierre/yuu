@@ -74,7 +74,8 @@ func _ready() -> void:
 	## 見えてしまい、一瞬シーン 2 のように見えてしまう。
 	start_scene1()
 	_busy = true                                ## 待っている間は入力を受けない
-	await get_tree().create_timer(1.0).timeout  ## Scratch の「1秒待つ」
+	if not await wait(1.0):                     ## Scratch の「1秒待つ」
+		return
 	_busy = false
 
 func _setup_colors() -> void:
@@ -372,12 +373,14 @@ func _show_cut_mark() -> void:
 	cut_mark.scale = Vector2(s, s)
 
 	## 3. 木に食い込んで急停止。少しめり込んで止まる。
-	await get_tree().create_timer(0.14).timeout
+	if not await wait(0.14):
+		return
 	## 4. 引き抜いて構えに戻す。疲れた感じでゆっくり（ease-out）。
 	await _swing_axe(SWING_HIT_X, AXE_OFFSET.x, SWING_RETURN_TIME, Effects.EASE_OUT)
 	_swinging = false
 
-	await get_tree().create_timer(0.35).timeout
+	if not await wait(0.35):
+		return
 
 	## 「切」が木へ吸い込まれて、そのまま切り込みとして残る。
 	await _drive_cut_into_tree()
@@ -406,7 +409,8 @@ func _drive_cut_into_tree() -> void:
 		var e := Effects.ease_k(k, Effects.EASE_IN)
 		cut_mark.position = from.lerp(target, e)
 		cut_mark.scale = Vector2.ONE * lerpf(from_scale, 0.6, e)
-		await get_tree().process_frame
+		if not await next_frame():
+			return
 
 	## 切り込みは 1 つだけ。増やさずに、切るたび大きくしていく。
 	if _scar == null or not is_instance_valid(_scar):
@@ -434,7 +438,8 @@ func _pop_scar() -> void:
 		t += get_process_delta_time()
 		var k: float = clampf(t / dur, 0.0, 1.0)
 		_scar.scale = Vector2.ONE * (1.0 + sin(k * PI) * 0.35)
-		await get_tree().process_frame
+		if not await next_frame():
+			return
 	if is_instance_valid(_scar):
 		_scar.scale = Vector2.ONE
 
@@ -445,7 +450,8 @@ func _swing_axe(x1: float, x2: float, dur: float, ease_type: int) -> void:
 		t += get_process_delta_time()
 		var k: float = clampf(t / dur, 0.0, 1.0)
 		_place_swinging_axe(lerpf(x1, x2, Effects.ease_k(k, ease_type)))
-		await get_tree().process_frame
+		if not await next_frame():
+			return
 	_place_swinging_axe(x2)
 
 ## 振っている最中の斧の位置と歪み。水平に薙ぐので傾けない。
@@ -472,13 +478,16 @@ func _fell_tree() -> void:
 	var base_x := forest.position.x
 	for i in 50:
 		forest.position.x = base_x + randf_range(-1.0, 1.0)
-		await get_tree().process_frame
+		if not await next_frame():
+			return
 	forest.position.x = base_x
 	## 15 度ずつ 6 回、切り口を軸に左へ倒れる。
 	for i in 6:
 		forest.rotation -= deg_to_rad(15.0)
-		await get_tree().create_timer(0.1).timeout
-	await get_tree().create_timer(1.0).timeout
+		if not await wait(0.1):
+			return
+	if not await wait(1.0):
+		return
 	start_scene3()
 
 ## 目標に到達。その瞬間にゲームを止めてクリア演出に入る。
@@ -487,7 +496,8 @@ func _finish() -> void:
 	hero.can_move = false   ## 到達した瞬間に勇者を止める
 
 	## 1. 一瞬止めて「決まった」感を作る。
-	await get_tree().create_timer(0.12).timeout
+	if not await wait(0.12):
+		return
 
 	## 2. 目標が「達成」に変わり、勢いよく飛び出して弾む。
 	if _left():

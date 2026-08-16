@@ -104,6 +104,26 @@
 - ステージ側は **`_left()`** を持っていて、クリア演出の段の間で確かめる
 - 場面を抜けるときは `_leaving = true` を立ててから `change_scene_to_file()`
 
+**ステージの演出で待つときは `await get_tree()` を直に書かない。**
+`StageBase` の **`next_frame()`** と **`wait(秒)`** だけを使う。
+
+```gdscript
+if not await next_frame(): return   ## 次のコマまで待つ
+if not await wait(0.5): return      ## 0.5 秒待つ
+```
+
+どちらも待つ前と待ったあとに場面を抜けたかを見て、抜けていたら false を返す。
+`await get_tree()` を直に書くと、そのたびに守りを手で足すことになり、
+**書き忘れても何も教えてくれず、遊んでいて初めて落ちる**。
+実際に、蟲の登場中や斧を振っている最中に「戻」を押すと落ちていた。
+
+抜けるときに後始末が要るものは、`return` の前に書く
+（`_shake_screen` は `position` を `(0,0)` に戻す。落とし穴 4）。
+
+**この落ち方はヘッドレスでは走り続けてしまい、テストは通ったように見える。**
+`Parameter "data.tree" is null` が stderr に出るだけなので、
+`run_all.sh` がそれを拾って失敗にしている。
+
 ### 10. `reload_current_scene()` は使わない
 
 `current_scene` が未設定だと `Parameter "current_scene" is null` で失敗する。

@@ -130,7 +130,8 @@ func _ready() -> void:
 	## 後から組むと、待っている間に初期配置（全員が原点にいる状態）が見えてしまう。
 	start_scene1()
 	_busy = true
-	await get_tree().create_timer(1.0).timeout
+	if not await wait(1.0):
+		return
 	_busy = false
 
 func _setup_colors() -> void:
@@ -208,17 +209,13 @@ func _emerge_worm() -> void:
 	_worm_head.position = hole
 	var t := 0.0
 	while t < HEAD_EMERGE_TIME:
-		## 場面を抜けたら、その場でやめる。
-		## await をまたぐ間にシーンが変わると、ノードは解放される前に
-		## まず木から外れる。そのまま続けると get_tree() が使えず落ちる。
-		if _left():
-			_emerging_now = false
-			return
 		t += get_process_delta_time()
 		var k: float = clampf(t / HEAD_EMERGE_TIME, 0.0, 1.0)
 		## 穴からせり上がるように、下から現れて大きくなる。
 		_worm_head.scale = Vector2.ONE * k
-		await get_tree().process_frame
+		if not await next_frame():
+			_emerging_now = false
+			return
 	_worm_head.scale = Vector2.ONE
 
 	## 頭が這い出し、そのあとを節が 1 つずつ追って出てくる。
@@ -227,9 +224,6 @@ func _emerge_worm() -> void:
 	var appeared := 0
 	var wait := 0.0
 	while _emerging < 1.0 or appeared < JOINT_COUNT:
-		if _left():
-			_emerging_now = false
-			return
 		var d := get_process_delta_time()
 		_advance_worm_head(d)
 
@@ -249,7 +243,9 @@ func _emerge_worm() -> void:
 				## 出るたびに末尾を「尾」にすると、1 本目から尾が見えてしまう。
 				## 全部出そろってから、いちばん後ろを尾にする。
 		_place_joints()
-		await get_tree().process_frame
+		if not await next_frame():
+			_emerging_now = false
+			return
 
 	## 出そろったので、最後の 1 つを尾にする。
 	_mark_tail()
@@ -484,9 +480,11 @@ func _defeated() -> void:
 	while t < 0.5:
 		t += get_process_delta_time()
 		hero.modulate.a = maxf(1.0 - t / 0.5, 0.0)
-		await get_tree().process_frame
+		if not await next_frame():
+			return
 
-	await get_tree().create_timer(0.4).timeout
+	if not await wait(0.4):
+		return
 	mark.queue_free()
 
 	## 宝箱が閉じた、何も持っていない状態からやり直す。
@@ -662,7 +660,8 @@ func _exhaust() -> void:
 		## 肩で息をするように、ゆっくり大きく揺れる。
 		var breathe := sin(t * 8.0) * 0.05
 		hero.scale = Vector2.ONE * (1.0 + STRAIN_GROW + breathe)
-		await get_tree().process_frame
+		if not await next_frame():
+			return
 
 	_rest_hero()
 	hero.can_move = true
@@ -767,7 +766,8 @@ func _cut_tail(during_emerge: bool = false) -> void:
 	var p := tail.position
 	## 当たった所で尾が一瞬弾けてから消える。手応えを出すため。
 	tail.scale = Vector2.ONE * 1.4
-	await get_tree().process_frame
+	if not await next_frame():
+		return
 	tail.queue_free()
 
 	## 落とした尾が砕けて飛び散る。
@@ -785,7 +785,8 @@ func _cut_tail(during_emerge: bool = false) -> void:
 		await _defeat_worm()
 	else:
 		_mark_tail()
-		await get_tree().create_timer(0.25).timeout
+		if not await wait(0.25):
+			return
 		if not during_emerge:
 			_busy = false
 
@@ -801,7 +802,8 @@ func _bounce_off(s: KanjiSprite) -> void:
 	mark.position = s.position
 	await Effects.pop_in(mark, 0.2)
 	## しばらく留めておく。ここが短いと、読む前に消えてしまう。
-	await get_tree().create_timer(0.9).timeout
+	if not await wait(0.9):
+		return
 	await Effects.fade_trail(mark, 0.4)
 
 ## 蟲を倒した。頭が落ちて道が開く。
@@ -814,7 +816,8 @@ func _defeat_worm() -> void:
 	var base_x := head.position.x
 	for i in 20:
 		head.position.x = base_x + randf_range(-3.0, 3.0)
-		await get_tree().process_frame
+		if not await next_frame():
+			return
 	head.position.x = base_x
 
 	## 落ちて消える。
@@ -833,14 +836,16 @@ func _defeat_worm() -> void:
 		v += 900.0 * d
 		head.position.y += v * d
 		head.rotation += d * 2.0
-		await get_tree().process_frame
+		if not await next_frame():
+			return
 	if is_instance_valid(head):
 		head.queue_free()
 
 	## 穴が目標に変わる。蟲がいなくなって、ようやく先へ行ける。
 	await _hole_becomes_goal()
 
-	await get_tree().create_timer(0.6).timeout
+	if not await wait(0.6):
+		return
 	_busy = false
 
 ## 蟲がいなくなった穴が、目標に変わる。
@@ -853,7 +858,8 @@ func _hole_becomes_goal() -> void:
 		t += get_process_delta_time()
 		var k: float = clampf(t / dur, 0.0, 1.0)
 		goal.scale = Vector2.ONE * (1.0 - k)
-		await get_tree().process_frame
+		if not await next_frame():
+			return
 	goal.scale = Vector2.ZERO
 
 	## 目標として現れる。
@@ -921,7 +927,8 @@ func _fly_arrow(targets: Array, dir: Vector2 = Vector2.UP, k: float = 1.0):
 				## 当たった所まで矢を進めてから消す。
 				## 手前で消えると当たった感じがしないため。
 				a.position = obj.position
-				await get_tree().process_frame
+				if not await next_frame():
+					return null
 				a.queue_free()
 				return obj
 
@@ -930,7 +937,8 @@ func _fly_arrow(targets: Array, dir: Vector2 = Vector2.UP, k: float = 1.0):
 		if p.x < -40.0 or p.x > Game.STAGE_W + 40.0 \
 				or p.y < -40.0 or p.y > Game.STAGE_H + 40.0:
 			break
-		await get_tree().process_frame
+		if not await next_frame():
+			return null
 
 	a.queue_free()
 	return null
@@ -951,7 +959,8 @@ func _release_bow() -> void:
 		var overshoot := sin(p * PI) * 0.18
 		bow.position = hero.position + BOW_OFFSET
 		bow.scale = Vector2(lerpf(from, BOW_THIN, e) - overshoot, 1.0)
-		await get_tree().process_frame
+		if not await next_frame():
+			return
 	bow.scale = Vector2(BOW_THIN, 1.0)
 
 # ---------------------------------------------------------------- クリア
@@ -963,7 +972,8 @@ func _finish() -> void:
 	_rest_hero()
 	_charge = 0.0
 
-	await get_tree().create_timer(0.12).timeout
+	if not await wait(0.12):
+		return
 
 	if _left():
 		return

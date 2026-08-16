@@ -21,10 +21,15 @@ for t in tests/test_*.gd; do
   if [ "$status" -ne 0 ]; then
     failed=1
   fi
-  # 演出が解放されたノードを触って落ちても、ヘッドレスは走り続けてしまう。
+  # 場面を抜けたあとも演出が回っていると、解放された木を触りにいって落ちる。
+  # ヘッドレスの Godot はそれでも走り続けてしまい、テストは通ったように見える。
   # 印は stderr にしか出ないので、ここで拾って失敗にする。
-  if echo "$out" | grep -q "SCRIPT ERROR"; then
-    echo "  失敗 スクリプトのエラーが出ている（上を見ること）"
+  #
+  # 見るのはこの落ち方だけに絞る。SCRIPT ERROR 全部を失敗にすると、
+  # --script モードで autoload の名前が解決できないだけの
+  # 昔からの出力（kanji_sprite.gd の Game）まで拾ってしまうため。
+  if echo "$out" | grep -qE 'Parameter "data.tree" is null|on a base object of type .null instance.|on a null value'; then
+    echo "  失敗 場面を抜けたあとに演出が動いている（上のエラーを見ること）"
     failed=1
   fi
   echo ""

@@ -46,6 +46,36 @@ func _unhandled_input(event: InputEvent) -> void:
 func _left() -> bool:
 	return _leaving or not is_inside_tree()
 
+## 演出の中で待つときは、この 2 つだけを使う。
+##
+## `await get_tree()` を直に書くと、そのたびに「場面を抜けたか」の
+## 確認を手で足すことになり、書き忘れると落ちる。
+## 実際に、蟲の登場中や斧を振っている最中に「戻」を押すと落ちていた。
+##
+## 待つ前と待ったあとの両方で確かめ、抜けていたら false を返す。
+## 呼ぶ側はこう書く（これで守りを書き忘れようがなくなる）:
+##
+##     if not await next_frame(): return
+##     if not await wait(0.5): return
+##
+## 待ったあとにも確かめるのが要点。待っている間に場面が変わるため。
+## シーンが切り替わると、ノードは解放される前にまず木から外れる。
+## その間 is_instance_valid() は true を返すのに get_tree() は使えない。
+
+## 次のコマまで待つ。まだこの場面にいれば true。
+func next_frame() -> bool:
+	if _left():
+		return false
+	await get_tree().process_frame
+	return not _left()
+
+## 指定の秒数だけ待つ。まだこの場面にいれば true。
+func wait(sec: float) -> bool:
+	if _left():
+		return false
+	await get_tree().create_timer(sec).timeout
+	return not _left()
+
 ## タイトルへ戻る。動いている演出を止めてから抜ける。
 ## 止めないと、解放されたノードを触りにいって固まる。
 func _to_title() -> void:
