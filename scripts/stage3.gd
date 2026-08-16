@@ -256,6 +256,8 @@ func _emerge_worm() -> void:
 	_emerging_now = false
 	_busy = false
 
+## 倒した頭が落ちきるまでの時間（秒）。
+const HEAD_FALL_TIME := 0.8
 ## 頭が穴からせり出すのにかける時間（秒）。
 const HEAD_EMERGE_TIME := 0.7
 ## 節が 1 つ出てくる間隔（秒）。
@@ -791,9 +793,14 @@ func _defeat_worm() -> void:
 	head.position.x = base_x
 
 	## 落ちて消える。
+	## 終わりは時間で決める。画面の下端で判定すると、
+	## 操作ボタンのぶん画面を広げたときに落ちきるまでが長くなり、
+	## いつまでも次へ進まないことがある。
 	var v := 0.0
-	while head.position.y < Game.STAGE_H + 60.0:
+	var fall_t := 0.0
+	while fall_t < HEAD_FALL_TIME:
 		var d := get_process_delta_time()
+		fall_t += d
 		v += 900.0 * d
 		head.position.y += v * d
 		head.rotation += d * 2.0
