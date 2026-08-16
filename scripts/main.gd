@@ -6,7 +6,10 @@ const COL_TREE := Color("#9e6a3f")   ## 木・木木木・倒木
 const COL_CHEST := Color("#bb3023")  ## 宝箱
 const COL_AXE := Color("#a7a7a7")    ## 斧
 const COL_CUT := Color("#ff7729")    ## 切
-const COL_SCAR := Color("#6b4423")   ## 木に残る切り跡
+const COL_SCAR := Color("#6b4423")   ## 木に残る切り込み
+## 切り込みの大きさ。切った回数ぶん深く（大きく）なる。
+const SCAR_SIZE := 14
+const SCAR_GROW := 8
 const COL_SOIL := Color("#6a302a")   ## 土
 const COL_GOAL := Color("#000000")   ## 目標
 const COL_DONE := Color("#3f9e44")   ## 達成
@@ -54,7 +57,7 @@ var _finished := false      ## クリア後は完全に停止する
 var _can_restart := false   ## クリア後、やり直しを受け付けるか
 var _can_advance := false   ## クリア後、次のステージへ進むのを受け付けるか
 var _leaving := false       ## この場面を出ていく最中か（演出を止める合図）
-var _scars: Array = []      ## 木に刻んだ切り跡
+var _scar: KanjiSprite = null  ## 木の根元の切り込み（1 つだけ。切るほど大きくなる）
 var _restart_hint: KanjiSprite  ## 「もう一度」の案内
 
 func _ready() -> void:
@@ -126,12 +129,11 @@ func start_scene1() -> void:
 # ---------------------------------------------------------------- シーン 2
 
 ## start1_2: シネマモード。宝箱から斧を取り、木木木 を 3 回切って倒す。
-## 木に刻んだ切り跡を消す。
+## 木の切り込みを消す。
 func _clear_scars() -> void:
-	for sc in _scars:
-		if is_instance_valid(sc):
-			sc.queue_free()
-	_scars.clear()
+	if is_instance_valid(_scar):
+		_scar.queue_free()
+	_scar = null
 
 func start_scene2() -> void:
 	Game.scene_no = 2
@@ -327,9 +329,9 @@ func _show_cut_mark() -> void:
 ## 別の字を新しく出すのではなく、振った結果の「切」がそのまま
 ## 傷になることで、切った跡だと分かるようにしている。
 func _drive_cut_into_tree() -> void:
-	## 刻む場所。切った回数ぶん、下から順に積み上がる。
-	var y := -150.0 + float(Game.cut_count - 1) * 14.0
-	var target := Game.to_godot(randf_range(-6.0, 6.0), y)
+	## 木の根元。ここに切り込みが刻まれ、切るほど深く（大きく）なる。
+	## forest は pivot が (0.5, 1.0) なので、位置がそのまま根元にあたる。
+	var target := forest.position
 
 	var from := cut_mark.position
 	var from_scale: float = cut_mark.scale.x
@@ -338,26 +340,41 @@ func _drive_cut_into_tree() -> void:
 	while t < dur:
 		t += get_process_delta_time()
 		var k: float = clampf(t / dur, 0.0, 1.0)
-		## 勢いよく木へ食い込む。
+		## 勢いよく根元へ食い込む。
 		var e := Effects.ease_k(k, EASE_IN)
 		cut_mark.position = from.lerp(target, e)
-		## 食い込むにつれて小さく、深い傷になる。
-		cut_mark.scale = Vector2.ONE * lerpf(from_scale, 0.55, e)
+		cut_mark.scale = Vector2.ONE * lerpf(from_scale, 0.6, e)
 		await get_tree().process_frame
 
-	## 木に残す。木の子にするので、倒れるときは一緒に傾く。
-	var scar := KanjiSprite.new()
-	scar.text = "切"
-	scar.color = COL_SCAR
-	scar.font_size = 16 + Game.cut_count * 3
-	scar.z_index = 5
-	forest.add_child(scar)
-	scar.position = target - forest.position
-	_scars.append(scar)
+	## 切り込みは 1 つだけ。増やさずに、切るたび大きくしていく。
+	if _scar == null or not is_instance_valid(_scar):
+		_scar = KanjiSprite.new()
+		_scar.text = "切"
+		_scar.color = COL_SCAR
+		_scar.z_index = 5
+		## 木の子にするので、倒れるときは一緒に傾く。
+		forest.add_child(_scar)
+		_scar.position = Vector2.ZERO   ## 根元
+	## 切った回数ぶん深くなる。
+	_scar.font_size = SCAR_SIZE + Game.cut_count * SCAR_GROW
+	## 刻まれた手応えとして、一瞬だけ膨らませる。
+	_pop_scar()
 
 	## 元の「切」は役目を終えたので隠す。
 	cut_mark.visible = false
 	cut_mark.scale = Vector2.ONE
+
+## 切り込みが刻まれた瞬間、少しだけ膨らんで戻る。
+func _pop_scar() -> void:
+	var t := 0.0
+	var dur := 0.22
+	while t < dur and is_instance_valid(_scar):
+		t += get_process_delta_time()
+		var k: float = clampf(t / dur, 0.0, 1.0)
+		_scar.scale = Vector2.ONE * (1.0 + sin(k * PI) * 0.35)
+		await get_tree().process_frame
+	if is_instance_valid(_scar):
+		_scar.scale = Vector2.ONE
 
 ## 斧を x1 から x2 まで水平に動かす。ease で緩急を変える。
 func _swing_axe(x1: float, x2: float, dur: float, ease_type: int) -> void:
