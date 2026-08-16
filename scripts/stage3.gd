@@ -1,4 +1,4 @@
-extends Node2D
+extends StageBase
 ## ステージ 3「蟲」。
 ##
 ## 行く手を塞ぐ相手そのものを射て、道を開ける話。
@@ -12,12 +12,8 @@ const COL_WORM := Color("#c2559b")    ## 蟲の頭（桃）
 const COL_JOINT := Color("#7a4fa3")   ## 節（紫）
 const COL_TAIL := Color("#3f9e44")    ## 尾（弱点なので目立たせる）
 const COL_BOW := Color("#66421f")     ## 弓
-const COL_CHEST := Color("#bb3023")   ## 宝箱
 const COL_BOW_FULL := Color("#c2559b") ## 引き絞りきった弓（もう放てる合図）
 const COL_ARROW := Color("#555555")   ## 矢
-const COL_GOAL := Color("#000000")    ## 目標
-const COL_DONE := Color("#3f9e44")    ## 達成
-const COL_SUB := Color("#555555")     ## 案内文字
 const COL_HARD := Color("#a7a7a7")    ## 弾かれた印
 const COL_HOLE := Color("#333333")   ## 穴
 const COL_HURT := Color("#bb3023")   ## やられた印
@@ -95,15 +91,10 @@ const TRAIL_SKIP := 9
 @onready var chest: KanjiSprite = $Chest
 @onready var goal: KanjiSprite = $Goal
 
-var _busy := false          ## 演出中は入力を無視する
-var _finished := false      ## クリア後は完全に停止する
-var _can_restart := false   ## クリア後、次へ進むのを受け付けるか
-var _restart_hint: KanjiSprite
 var _shoot_was_down := false ## 前のコマでスペースが押されていたか
 var _act_was_down := false  ## 宝箱用。前のコマで押されていたか
 var _act_just_pressed := false ## 宝箱用。このコマで押された瞬間か
 var _charge := 0.0          ## 引き絞り具合（0=細い 〜 1=引き絞りきった）
-var _leaving := false       ## この場面を出ていく最中か（演出を止める合図）
 var _shooting := false      ## 射っている最中か（弓の位置は演出側が決める）
 var _await_release := false ## 一度キーを離すまで引き絞りを始めない
 var _hold_time := 0.0       ## 引き絞りきったまま粘っている時間
@@ -977,63 +968,4 @@ func _finish() -> void:
 		_show_end_hint("%sで次のステージへ" % TouchPad.accept_key_name())
 	else:
 		_show_end_hint("%sでもう一度" % TouchPad.accept_key_name())
-
-func _show_end_hint(text: String) -> void:
-	## 途中でタイトルへ抜けていたら、もう何もしない。
-	if _left():
-		return
-	_restart_hint = KanjiSprite.new()
-	_restart_hint.text = text
-	_restart_hint.color = COL_SUB
-	_restart_hint.font_size = 16
-	_restart_hint.z_index = 11
-	add_child(_restart_hint)
-	_restart_hint.set_scratch_pos(0, -60)
-
-	## この瞬間に押していたキーを拾わないよう、少し待ってから受け付ける。
-	await get_tree().create_timer(0.5).timeout
-	_can_restart = true
-	Effects.blink(_restart_hint, func(): return _can_restart)
-
-## タイトル画面へ戻る。
-## この場面をもう離れたか。演出は await をまたぐので、
-## 続きを進める前にこれで確かめる。
-func _left() -> bool:
-	return _leaving or not is_inside_tree()
-
-func _to_title() -> void:
-	## 動いている演出を止めてから抜ける。
-	## 矢もクリア演出も、止めないと解放されたノードを触りにいって固まる。
-	_leaving = true
-	_finished = true
-	_can_restart = false
-	Game.reset()
-	get_tree().change_scene_to_file("res://scenes/title.tscn")
-
-## 決定キー。次のステージがあれば進み、無ければ最初からやり直す。
-func _confirm() -> void:
-	if not _can_restart:
-		return
-	_can_restart = false
-	if Game.stage_no < Game.STAGE_MAX:
-		Game.goto_stage(get_tree(), Game.stage_no + 1)
-	else:
-		Game.reset()
-		get_tree().change_scene_to_file(Game.STAGE_SCENES[1])
-
-func _unhandled_input(event: InputEvent) -> void:
-	## Esc（スマホでは「戻」ボタン）でいつでもタイトルへ戻れる。
-	if event.is_action_pressed("ui_cancel"):
-		_to_title()
-		return
-	if not _can_restart:
-		return
-	## 画面を触って進められるのは、指で遊ぶ機械ではないときだけ。
-	## 指で遊ぶ機械では、すべて画面のボタンで操作する。
-	## 触っただけで進むと、意図しない所で先へ行ってしまう。
-	if event is InputEventMouseButton and event.pressed:
-		if not TouchPad.needed():
-			_confirm()
-	elif event.is_action_pressed("ui_accept"):
-		_confirm()
 
