@@ -127,6 +127,7 @@ func _ready() -> void:
 	Game.stage_no = 3
 
 	_setup_colors()
+	Effects.show_escape_hint(self)   ## 左上に「Esc でタイトルに戻る」
 	_rest_hero()   ## 前の遊びの姿が残らないように
 
 	## 先に場面を組んでから待つ。

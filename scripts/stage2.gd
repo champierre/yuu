@@ -24,6 +24,7 @@ const COL_THIEF := Color("#7a3f7a")    ## 盗人
 const COL_GOAL := Color("#000000")     ## 目標
 const COL_DONE := Color("#3f9e44")     ## 達成
 const COL_SUB := Color("#555555")      ## 案内文字
+const COL_SHOCK := Color("#d02020")    ## 衝撃
 
 ## 壁の高さ。ここから上（目標側）へは門を通らないと行けない。
 const WALL_Y := 75.0
@@ -76,6 +77,7 @@ func _ready() -> void:
 	Game.stage_no = 2
 
 	_setup_colors()
+	Effects.show_escape_hint(self)   ## 左上に「Esc でタイトルに戻る」
 	start_scene1()
 	_busy = true
 	await get_tree().create_timer(1.0).timeout
@@ -398,28 +400,108 @@ func _meet_thief() -> void:
 func _rob() -> void:
 	_busy = true
 	hero.can_move = false
+
+	## 1. 一瞬止まる。何が起きたか分からない間。
+	await get_tree().create_timer(0.15).timeout
+
+	## 2. 画面が揺れて「衝撃」を出す。取られた驚きを見せる。
+	_shock()
+	await _shake_screen(0.45, 9.0)
+
 	_say("盗人「金はいただいていくぞ」", 2.0)
 
-	## 持ち物が「金」から「失」に変わる。
+	## 3. 「金」が盗人の手へ飛んでいく。
+	var gold := KanjiSprite.new()
+	gold.text = "金"
+	gold.color = COL_GOLD
+	gold.z_index = 12
+	add_child(gold)
+	gold.position = item.position
+	item.visible = false
+	var t := 0.0
+	var dur := 0.5
+	var from := gold.position
+	while t < dur:
+		t += get_process_delta_time()
+		var k: float = clampf(t / dur, 0.0, 1.0)
+		gold.position = from.lerp(thief.position, Effects.ease_k(k, EASE_IN))
+		gold.scale = Vector2.ONE * (1.0 - k * 0.5)
+		await get_tree().process_frame
+	gold.queue_free()
+
+	## 4. 持ち物が「金」から「失」に変わる。
 	Game.lost_gold = true
 	Game.got_gold = false
+	item.visible = true
 	item.text = "失"
 	item.color = COL_LOST
 	await Effects.pop_in(item, 0.4)
 
-	await get_tree().create_timer(1.0).timeout
+	## 5. 勇者がうなだれる。
+	await _slump_hero()
+
+	await get_tree().create_timer(0.6).timeout
 
 	## 盗人は左へ逃げて消える。
 	_thief_gone = true
-	var t := 0.0
-	while t < 1.0 and thief.position.x > -60.0:
-		t += get_process_delta_time()
+	var run := 0.0
+	while run < 1.0 and thief.position.x > -60.0:
+		run += get_process_delta_time()
 		thief.position.x -= 220.0 * get_process_delta_time()
 		await get_tree().process_frame
 	thief.visible = false
 
 	hero.can_move = true
 	_busy = false
+
+## 「衝」の字を大きく出して、すぐ消す。取られた瞬間の驚き。
+func _shock() -> void:
+	var mark := KanjiSprite.new()
+	mark.text = "衝"
+	mark.color = COL_SHOCK
+	mark.font_size = 72
+	mark.z_index = 15
+	add_child(mark)
+	mark.set_scratch_pos(0, 0)
+	_fade_out(mark, 0.5)
+
+## 画面全体を揺らす。驚きを体で感じさせるため。
+## 自分（場面のまとめ役）ごとずらして、元に戻す。
+func _shake_screen(dur: float, power: float) -> void:
+	var t := 0.0
+	while t < dur:
+		t += get_process_delta_time()
+		var k: float = clampf(t / dur, 0.0, 1.0)
+		## だんだん収まる。
+		var p := power * (1.0 - k)
+		position = Vector2(randf_range(-p, p), randf_range(-p, p))
+		await get_tree().process_frame
+	position = Vector2.ZERO
+
+## 勇者がうなだれる。縦に潰れてから戻る。
+func _slump_hero() -> void:
+	var t := 0.0
+	var dur := 0.7
+	while t < dur:
+		t += get_process_delta_time()
+		var k: float = clampf(t / dur, 0.0, 1.0)
+		## 前半で沈み、後半で戻る。
+		var sink := sin(k * PI)
+		hero.scale = Vector2(1.0 + sink * 0.2, 1.0 - sink * 0.3)
+		await get_tree().process_frame
+	hero.scale = Vector2.ONE
+
+## 文字を薄くしながら消す。
+func _fade_out(node: KanjiSprite, dur: float) -> void:
+	var t := 0.0
+	while t < dur:
+		if not is_instance_valid(node) or not node.is_inside_tree():
+			return
+		t += get_process_delta_time()
+		node.modulate.a = clampf(1.0 - t / dur, 0.0, 1.0)
+		await get_tree().process_frame
+	if is_instance_valid(node):
+		node.queue_free()
 
 ## 村人に出会う。金を失ったあとは言うことが変わる。
 func _meet_villagers() -> void:
@@ -428,7 +510,10 @@ func _meet_villagers() -> void:
 			continue
 		if hero.position.distance_to(v.position) > TALK_REACH:
 			continue
-		if Game.lost_gold:
+		if Game.got_iron or Game.gate_open:
+			## 鉄を手にしたあとは、もう盗人の心配をする場面ではない。
+			_say("村人「よくぞ鉄を見つけたな」")
+		elif Game.lost_gold:
 			_say("村人「かわいそうに……」")
 		else:
 			## どちらを言うかは村人ごとに決めておく。

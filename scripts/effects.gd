@@ -150,3 +150,17 @@ static func leave_trail(parent: Node2D, src: KanjiSprite, life: float = 0.18) ->
 	t.scale = src.scale
 	t.modulate.a = 0.35
 	fade_trail(t, life)
+
+## 画面の左上に「Esc でタイトルへ」と小さく出す。
+## どのステージでも同じ位置に出したいので、ここに置いている。
+static func show_escape_hint(parent: Node2D) -> KanjiSprite:
+	var h := KanjiSprite.new()
+	h.text = "Esc でタイトルに戻る"
+	h.color = Color("#999999")
+	h.font_size = 12
+	h.z_index = 20
+	parent.add_child(h)
+	## 左上に寄せる。pivot を左端にして、画面の縁からの余白を揃える。
+	h.pivot = Vector2(0.0, 0.0)
+	h.set_scratch_pos(-234, 174)
+	return h

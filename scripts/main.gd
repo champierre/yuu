@@ -60,6 +60,7 @@ func _ready() -> void:
 	## シネマモード中に右端 (x>230) まで歩くとシーン 1 に戻る。
 	hero.reached_right_edge.connect(_on_hero_reached_right_edge)
 	_setup_colors()
+	Effects.show_escape_hint(self)   ## 左上に「Esc でタイトルに戻る」
 	## 先にシーン 1 を組んでから待つ。
 	## 後から組むと、待っている間シーンの初期配置（全員が原点にいる状態）が
 	## 見えてしまい、一瞬シーン 2 のように見えてしまう。
