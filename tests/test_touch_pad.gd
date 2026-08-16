@@ -29,7 +29,39 @@ func run_tests() -> void:
 	pad._press_at(back, 0)
 	await wait_ms(900)
 	var now := current_scene
-	check(now != null and now.name == "Title", "「戻」でタイトルへ戻る")
+	check(now != null and now.name == "Title", "「戻」でタイトルへ戻る（ステージ3）")
+
+## 3 つのステージすべてで「戻」が効くか。
+## どれか 1 つで効かないと、そこから抜けられなくなる。
+	for scene in ["stage1", "stage2", "stage3"]:
+		var st := await load_scene("res://scenes/%s.tscn" % scene)
+		var p2 = load("res://scripts/touch_pad.gd").new()
+		st.add_child(p2)
+		await wait_ms(200)
+		p2._press_at(_btn_pos(p2, "ui_cancel"), 0)
+		await wait_ms(900)
+		var after := current_scene
+		check(after != null and after.name == "Title", "%s で「戻」が効く" % scene)
+	## 「戻」で帰ったあと、そのまま遊びが始まってしまわないか。
+	## 押した指を離すと、タイトルが「画面を触った」と受け取って
+	## ステージが始まってしまうことがあった。
+	var st2 := await load_scene("res://scenes/stage2.tscn")
+	var p3 = load("res://scripts/touch_pad.gd").new()
+	st2.add_child(p3)
+	await wait_ms(200)
+	var bpos := _btn_pos(p3, "ui_cancel")
+	p3._press_at(bpos, 0)
+	await wait_ms(600)
+	## タイトルへ帰ったあとで指を離す（実際の遊びと同じ順）。
+	var t := current_scene
+	var ev := InputEventScreenTouch.new()
+	ev.position = bpos
+	ev.pressed = false
+	ev.index = 0
+	Input.parse_input_event(ev)
+	await wait_ms(800)
+	var now2 := current_scene
+	check(now2 != null and now2.name == "Title", "「戻」のあと、そのまま始まらない")
 
 func _btn_pos(pad, action: String) -> Vector2:
 	for b in pad.BUTTONS:
