@@ -30,11 +30,25 @@ Godot 4.4 以降が必要です。エディタで `project.godot` を開くか�
 godot --path .
 ```
 
-Web 版を手元で書き出す場合:
+ブラウザで確かめる場合:
 
 ```sh
 godot --headless --export-release "Web" build/web/index.html
-cd build/web && python3 -m http.server 8000
+python3 tests/serve.py
+# → http://localhost:8000
+```
+
+`python3 -m http.server` ではなく `tests/serve.py` を使ってください。
+Godot 4 の Web 版は `Cross-Origin-Opener-Policy` と
+`Cross-Origin-Embedder-Policy` が付いていないと起動しません。
+
+スマホでの見え方を試すときは、ブラウザの開発者ツールで
+端末の表示に切り替えると、画面下のボタンが出ます。
+
+テストを走らせる場合:
+
+```sh
+./tests/run_all.sh
 ```
 
 `main` ブランチへの push で GitHub Actions が Web 版を書き出し、
