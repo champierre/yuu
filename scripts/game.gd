@@ -9,7 +9,7 @@ const STAGE_H := 360.0
 ## ステージを増やすときはここに足すだけでよい（遷移する側は番号しか知らない）。
 const STAGE_SCENES := {
 	1: "res://scenes/main.tscn",
-	2: "res://scenes/stage2.tscn",
+	2: "res://scenes/stage3.tscn",
 }
 ## 最後のステージ番号。クリア後に「次へ」を出すか「もう一度」を出すかの判断に使う。
 const STAGE_MAX := 2

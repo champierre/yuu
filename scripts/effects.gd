@@ -27,14 +27,18 @@ static func pop_in(node: Node2D, dur: float) -> void:
 	node.scale = Vector2.ZERO
 	var t := 0.0
 	while t < dur:
-		t += node.get_process_delta_time()
+		if not is_instance_valid(node) or not node.is_inside_tree():
+			return
+		var tree := node.get_tree()
+		t += tree.root.get_process_delta_time()
 		var k: float = clampf(t / dur, 0.0, 1.0)
 		## 一度 1.0 を超えてから戻ることで「ぼよん」と弾ませる。
 		var e := 1.0 - pow(1.0 - k, 3.0)
 		var overshoot := sin(k * PI) * 0.45
 		node.scale = Vector2.ONE * (e + overshoot)
-		await node.get_tree().process_frame
-	node.scale = Vector2.ONE
+		await tree.process_frame
+	if is_instance_valid(node):
+		node.scale = Vector2.ONE
 
 ## 破片を飛ばして、減速しながら落として消す。
 static func fly_particle(p: KanjiSprite, vel: Vector2) -> void:
@@ -42,15 +46,20 @@ static func fly_particle(p: KanjiSprite, vel: Vector2) -> void:
 	var life := 1.4
 	var t := 0.0
 	while t < life:
-		var d := p.get_process_delta_time()
+		## シーンが切り替わると解放されるので、毎回確かめる。
+		if not is_instance_valid(p) or not p.is_inside_tree():
+			return
+		var tree := p.get_tree()
+		var d := tree.root.get_process_delta_time()
 		t += d
 		p.position += v * d
 		v.y += 260.0 * d      ## 重力で落ちる
 		v *= 0.985            ## 空気抵抗で減速
 		p.rotation += d * 3.0
 		p.scale = Vector2.ONE * clampf(1.0 - t / life, 0.0, 1.0)
-		await p.get_tree().process_frame
-	p.queue_free()
+		await tree.process_frame
+	if is_instance_valid(p):
+		p.queue_free()
 
 ## origin を中心に漢字が放射状に飛び散る。
 ## parent に破片をぶら下げるので、シーンが変わればまとめて消える。
@@ -73,12 +82,15 @@ static func cheer(node: Node2D, times: int = 2) -> void:
 		var dur := 0.34
 		var t := 0.0
 		while t < dur:
+			if not is_instance_valid(node) or not node.is_inside_tree():
+				return
 			t += node.get_process_delta_time()
 			var k: float = clampf(t / dur, 0.0, 1.0)
 			## 放物線を描いて上がって下りる。
 			node.position.y = base.y - sin(k * PI) * 26.0
 			await node.get_tree().process_frame
-		node.position = base
+		if is_instance_valid(node):
+			node.position = base
 
 ## 画面に大きな一文字を出す。
 static func show_banner(parent: Node2D, text: String, color: Color,
@@ -98,7 +110,7 @@ static func show_banner(parent: Node2D, text: String, color: Color,
 ## シーン切り替えで対象ごと解放されるため、毎回 is_instance_valid で確かめる。
 static func blink(node: KanjiSprite, should_continue: Callable) -> void:
 	var t := 0.0
-	while is_instance_valid(node) and should_continue.call():
+	while is_instance_valid(node) and node.is_inside_tree() and should_continue.call():
 		t = fmod(t + node.get_process_delta_time(), 1.2)
 		node.modulate.a = 0.35 + 0.65 * (0.5 + 0.5 * sin(t * PI * 2.0 - PI * 0.5))
 		await node.get_tree().process_frame
@@ -106,13 +118,21 @@ static func blink(node: KanjiSprite, should_continue: Callable) -> void:
 		node.modulate.a = 1.0
 
 ## 残像を薄くしながら消す。
+## シーンが切り替わると対象ごと解放されるので、毎回生きているか確かめる。
 static func fade_trail(t: KanjiSprite, life: float = 0.18) -> void:
 	var e := 0.0
 	while e < life:
-		e += t.get_process_delta_time()
+		## is_instance_valid だけでは足りない。木から外された直後は
+		## まだ「生きている」が get_tree() は使えないため、
+		## is_inside_tree() で中にいることまで確かめる。
+		if not is_instance_valid(t) or not t.is_inside_tree():
+			return
+		var tree := t.get_tree()
+		e += tree.root.get_process_delta_time()
 		t.modulate.a = clampf(1.0 - e / life, 0.0, 1.0)
-		await t.get_tree().process_frame
-	t.queue_free()
+		await tree.process_frame
+	if is_instance_valid(t):
+		t.queue_free()
 
 ## 通った跡に、同じ形の文字を薄く置いてすぐ消す。動きの軌跡に見える。
 static func leave_trail(parent: Node2D, src: KanjiSprite) -> void:

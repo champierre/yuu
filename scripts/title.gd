@@ -1,8 +1,6 @@
 extends Node2D
 ## タイトル画面。漢字だけで構成した本編に合わせ、文字を組んで見せる。
 
-const COL_TREE := Color("#9e6a3f")
-const COL_RIVER := Color("#003cff")
 const COL_HERO := Color("#000000")
 const COL_SUB := Color("#555555")
 const COL_HINT := Color("#888888")
@@ -40,9 +38,6 @@ func _build() -> void:
 	add_child(main_title)
 	main_title.set_scratch_pos(0, 40)
 
-	## タイトルの下に、本編に出てくる漢字を一列に並べて世界観を見せる。
-	_add_cast()
-
 	## ステージ選択。
 	_add_stage_select()
 
@@ -52,7 +47,7 @@ func _build() -> void:
 	keys.color = COL_SUB
 	keys.font_size = 14
 	add_child(keys)
-	keys.set_scratch_pos(0, -95)
+	keys.set_scratch_pos(0, -85)
 
 	## 点滅する案内。
 	_hint = KanjiSprite.new()
@@ -60,39 +55,11 @@ func _build() -> void:
 	_hint.color = COL_HINT
 	_hint.font_size = 16
 	add_child(_hint)
-	_hint.set_scratch_pos(0, -135)
+	_hint.set_scratch_pos(0, -125)
 	_blink()
 
-## 本編の登場人物（漢字）を横に並べる。
-func _add_cast() -> void:
-	var cast := [
-		{"t": "勇", "c": COL_HERO},
-		{"t": "川", "c": COL_RIVER},
-		{"t": "木", "c": COL_TREE},
-		{"t": "斧", "c": Color("#a7a7a7")},
-		{"t": "宝箱", "c": Color("#bb3023")},
-		{"t": "目標", "c": COL_HERO},
-	]
-	## 文字数ぶんの幅を積み上げ、全体が中央に来るよう配置する。
-	const CHAR_W := 24.0   ## 1 文字の幅
-	const GAP := 22.0      ## 語と語の間隔
-	var total := 0.0
-	for c in cast:
-		total += float(c["t"].length()) * CHAR_W + GAP
-	total -= GAP
-	var x := -total * 0.5
-	for c in cast:
-		var w := float(c["t"].length()) * CHAR_W
-		var s := KanjiSprite.new()
-		s.text = c["t"]
-		s.color = c["c"]
-		s.font_size = 22
-		add_child(s)
-		s.set_scratch_pos(x + w * 0.5, -30)
-		x += w + GAP
-
 ## ステージを横に並べて選べるようにする。
-## 並べ方は _add_cast と同じで、全体の幅を積んでから中央に寄せる。
+## 全体の幅を積み上げてから、中央に来るように並べる。
 func _add_stage_select() -> void:
 	const GAP := 28.0
 	var texts: Array = []
@@ -114,7 +81,7 @@ func _add_stage_select() -> void:
 	var x := -total * 0.5
 	for s in _stage_labels:
 		var w: float = s.rect().size.x
-		s.set_scratch_pos(x + w * 0.5, -50)
+		s.set_scratch_pos(x + w * 0.5, -30)
 		x += w + GAP
 
 	_refresh_stage_select()

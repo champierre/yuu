@@ -434,6 +434,12 @@ func _confirm() -> void:
 		_restart()
 
 func _unhandled_input(event: InputEvent) -> void:
+	## Esc はいつでもタイトルへ戻れる。
+	if event is InputEventKey and event.pressed and not event.echo \
+			and event.keycode == KEY_ESCAPE:
+		Game.reset()
+		get_tree().change_scene_to_file("res://scenes/title.tscn")
+		return
 	if not _can_restart and not _can_advance:
 		return
 	if event is InputEventMouseButton and event.pressed:
