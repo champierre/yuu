@@ -135,7 +135,7 @@ static func fade_trail(t: KanjiSprite, life: float = 0.18) -> void:
 		t.queue_free()
 
 ## 通った跡に、同じ形の文字を薄く置いてすぐ消す。動きの軌跡に見える。
-static func leave_trail(parent: Node2D, src: KanjiSprite) -> void:
+static func leave_trail(parent: Node2D, src: KanjiSprite, life: float = 0.18) -> void:
 	var t := KanjiSprite.new()
 	t.text = src.text
 	t.color = src.color
@@ -144,4 +144,4 @@ static func leave_trail(parent: Node2D, src: KanjiSprite) -> void:
 	t.position = src.position
 	t.scale = src.scale
 	t.modulate.a = 0.35
-	fade_trail(t)
+	fade_trail(t, life)

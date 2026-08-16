@@ -21,6 +21,13 @@ const COL_SUB := Color("#555555")     ## 案内文字
 const COL_HARD := Color("#a7a7a7")    ## 弾かれた印
 const COL_HOLE := Color("#333333")   ## 穴
 const COL_HURT := Color("#bb3023")   ## やられた印
+## 引き絞って力んでいる勇者「疲」の色。
+## ためるほど 黄 → 橙 → 赤 と変わり、力の入り具合が色で分かる。
+const COL_STRAIN_LOW := Color("#e8c020")   ## 引き始め（黄）
+const COL_STRAIN_MID := Color("#e87a20")   ## 半ば（橙）
+const COL_STRAIN_HIGH := Color("#d02020")  ## 引き絞りきり（赤）
+## 引き絞りきったときに、勇者がどれだけ大きくなるか。
+const STRAIN_GROW := 0.5
 
 ## 弓を構える位置（勇者から見て右上）。ステージ 1 の斧と同じ考え方。
 const BOW_OFFSET := Vector2(16, -16)
@@ -54,6 +61,8 @@ const ARROW_MUZZLE_DIST := 18.0
 const ARROW_REACH := 22.0
 ## 残像を置く間隔 (px)。これより近い所には重ねて置かない。
 const TRAIL_GAP := 12.0
+## 残像が消えるまでの時間 (秒)。短く保ち、矢が着いたらすぐ消えるようにする。
+const TRAIL_LIFE := 0.08
 
 ## 蟲の節の数（頭を除く）。最後の 1 つが弱点の「尾」。
 const JOINT_COUNT := 7
@@ -113,6 +122,7 @@ func _ready() -> void:
 	Game.stage_no = 3
 
 	_setup_colors()
+	_rest_hero()   ## 前の遊びの姿が残らないように
 
 	## 先に場面を組んでから待つ。
 	## 後から組むと、待っている間に初期配置（全員が原点にいる状態）が見えてしまう。
@@ -137,6 +147,9 @@ func start_scene1() -> void:
 	_worm_beaten = false
 
 	hero.visible = true
+	hero.text = "勇"
+	hero.color = Color.BLACK
+	hero.scale = Vector2.ONE
 	hero.set_scratch_pos(0, -130)
 	hero.can_move = true
 
@@ -318,7 +331,10 @@ func _process(delta: float) -> void:
 	## ここを止めると、蟲の登場演出の間だけ弓が取り残されて見える。
 	_follow_bow()
 
-	if _busy:
+	## 蟲が出てくる間も弓は構えられるようにする。
+	## ここで止めると、宝箱を開けてから数秒は引き絞れず、
+	## 反応しないと思われてしまう。
+	if _busy and not _emerging_now:
 		_shoot_was_down = shoot_down
 		return
 
@@ -347,6 +363,7 @@ func _process(delta: float) -> void:
 	## 弓を持っている間は、スペースの押し下げで引き絞り、離すと放つ。
 	if Game.got_bow:
 		_update_charge(delta)
+		return
 
 ## 蟲が毒を吐く。勇者のいる方へ向けて飛ばす。
 func _spit_poison(delta: float) -> void:
@@ -436,6 +453,7 @@ func _defeated() -> void:
 	## 蟲も引き金（弓を取ること）から出直しになる。
 	Game.got_bow = false
 	hero.modulate.a = 1.0
+	_rest_hero()   ## 「疲」のままにしない
 	_shoot_was_down = false
 	_charge = 0.0
 	_clear_poisons()
@@ -543,17 +561,47 @@ func _update_charge(delta: float) -> void:
 		## 引き絞っている間は足を止める。
 		## 狙いを定める動作なので、歩きながら撃てると緊張感が無くなる。
 		hero.can_move = false
+		_show_strain()
 	elif _shoot_was_down:
 		## 離した瞬間に放つ。ためた分だけ速く飛ぶ。
 		var k := _charge
 		_charge = 0.0
 		_shoot_was_down = false
 		hero.can_move = true   ## 放ったので、また動ける
-		_shoot(k)
+		_rest_hero()           ## 「疲」から元の「勇」へ戻す
+		## 蟲がまだ出てくる途中なら、構えは解くが矢は放たない。
+		## 登場演出と射撃演出が重なると、どちらも中途半端になるため。
+		if not _emerging_now:
+			_shoot(k)
 		return
 
 	_shoot_was_down = down
 	_show_bow_charge()
+
+## 引き絞っている間の勇者。「疲」に変わり、力むほど少しずつ大きくなる。
+## 動けないことを、字そのもので見せている。
+func _show_strain() -> void:
+	hero.text = "疲"
+	## 前半は黄から橙へ、後半は橙から赤へ。
+	## 2 段に分けることで、限界が近いことが色ではっきり分かる。
+	if _charge < 0.5:
+		hero.color = COL_STRAIN_LOW.lerp(COL_STRAIN_MID, _charge / 0.5)
+	else:
+		hero.color = COL_STRAIN_MID.lerp(COL_STRAIN_HIGH, (_charge - 0.5) / 0.5)
+	## ためるほど大きくなる。踏ん張っている感じを出すため、
+	## 満ちるにつれて小刻みに震えさせる。
+	var grow := 1.0 + _charge * STRAIN_GROW
+	var shake := 0.0
+	if _charge >= 1.0:
+		## 引き絞りきったら、もう限界という様子で震える。
+		shake = sin(Time.get_ticks_msec() * 0.03) * 0.04
+	hero.scale = Vector2.ONE * (grow + shake)
+
+## 放ったあと、勇者を元に戻す。
+func _rest_hero() -> void:
+	hero.text = "勇"
+	hero.color = Color.BLACK
+	hero.scale = Vector2.ONE
 
 ## 引き具合を弓の太さで見せる。細い状態から、ためるほど太くなる。
 func _show_bow_charge() -> void:
@@ -726,7 +774,10 @@ func _fly_arrow(targets: Array, dir: Vector2 = Vector2.UP, k: float = 1.0):
 			## 消えるまでいつまでも残って見えてしまう。
 			if last_trail.distance_to(a.position) >= TRAIL_GAP:
 				last_trail = a.position
-				Effects.leave_trail(self, a)
+				## 残像は矢より長生きさせない。
+				## 既定 (0.18秒) のままだと、飛距離の短い矢では
+				## 本体が着いたあとも残像だけが漂って見えてしまう。
+				Effects.leave_trail(self, a, TRAIL_LIFE)
 		else:
 			## 力尽きた。あとは落ちるだけ。残像はもう置かない。
 			fall += 900.0 * d
@@ -779,6 +830,9 @@ func _release_bow() -> void:
 func _finish() -> void:
 	_finished = true
 	hero.can_move = false
+	## 引き絞ったまま辿り着いた場合に備えて、姿を戻す。
+	_rest_hero()
+	_charge = 0.0
 
 	await get_tree().create_timer(0.12).timeout
 
