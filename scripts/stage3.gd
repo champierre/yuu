@@ -26,6 +26,9 @@ const COL_STRAIN_HIGH := Color("#d02020")  ## 引き絞りきり（赤）
 const STRAIN_GROW := 0.5
 ## 引き絞りきったまま粘っていられる時間（秒）。これを超えると力尽きる。
 const HOLD_LIMIT := 1.2
+## 引き絞っている間の歩く速さ（ふだんの何倍か）。
+## 止めてしまうと毒を避けられなくなるので、遅くするだけにとどめる。
+const DRAW_SPEED_SCALE := 1.0 / 3.0
 ## 力尽きたあと、動けない時間（秒）。
 const EXHAUST_TIME := 1.4
 
@@ -68,6 +71,20 @@ const POISON_INTERVAL := 1.6
 const POISON_SPEED := 150.0
 const POISON_REACH := 16.0
 const COL_POISON := Color("#6aa84f")  ## 毒
+
+## 残りの節がこれ以下になると、蟲は追い詰められて荒れる。
+## 倒し際がいちばんの山場になるようにするための仕掛け。
+const RAGE_JOINTS := 2
+## 荒れても、吐く間隔と飛ぶ速さは変えない。
+## 激しさは「一度に三方向へまき散らす」だけで出す。
+## 間隔を詰めたり速くしたりすると、避ける間が無くなって理不尽になる。
+##
+## 荒れているときは三方向へ吐く。中央からこれだけ左右に振る（ラジアン）。
+## 0.45 はおよそ 26 度。三方合わせて 52 度ぶんの扇になる。
+## これ以上広げると横へ逃げる道まで塞がってしまう。
+const POISON_SPREAD := 0.45
+## 荒れた蟲の頭の色。赤く染めて、様子が変わったことを見て分かるようにする。
+const COL_WORM_RAGE := Color("#e03a2a")
 
 ## 穴（蟲のすみか。倒すと目標になる）の高さ。
 const HOLE_Y := 150.0
@@ -386,23 +403,34 @@ func _process(delta: float) -> void:
 		_update_charge(delta)
 		return
 
+## 追い詰められて荒れているか。節が残りわずかになると激しくなる。
+## 節を全部落としたあと（＝倒したあと）は数に入れない。
+func _raging() -> bool:
+	return not _joints.is_empty() and _joints.size() <= RAGE_JOINTS
+
 ## 蟲が毒を吐く。勇者のいる方へ向けて飛ばす。
 func _spit_poison(delta: float) -> void:
 	_poison_timer -= delta
 	if _poison_timer > 0.0:
 		return
+	var raging := _raging()
 	_poison_timer = POISON_INTERVAL
 
-	var p := KanjiSprite.new()
-	p.text = "毒"
-	p.color = COL_POISON
-	p.font_size = 20
-	add_child(p)
-	p.position = _worm_head.position
 	## 勇者の方へ飛ばす。まっすぐ狙うと避けられないので、少しばらす。
 	var dir := (hero.position - _worm_head.position).normalized()
 	dir = dir.rotated(randf_range(-0.25, 0.25))
-	_poisons.append({"node": p, "vel": dir * POISON_SPEED})
+
+	## 荒れているときは三方向へまき散らす。
+	## 扇の開きは広げすぎない。真横まで届くと逃げ場が無くなってしまう。
+	var angles := [-POISON_SPREAD, 0.0, POISON_SPREAD] if raging else [0.0]
+	for a in angles:
+		var p := KanjiSprite.new()
+		p.text = "毒"
+		p.color = COL_POISON
+		p.font_size = 20
+		add_child(p)
+		p.position = _worm_head.position
+		_poisons.append({"node": p, "vel": dir.rotated(a) * POISON_SPEED})
 
 ## 飛んでいる毒を進める。画面の外に出たら消す。
 func _move_poisons(delta: float) -> void:
@@ -539,6 +567,10 @@ func _move_worm(delta: float) -> void:
 
 	_place_joints()
 
+	## 追い詰められると赤く染まる。毒が激しくなったことを色で知らせる。
+	## 毎コマ決め直しているのは、節が減った瞬間を取りこぼさないため。
+	_worm_head.color = COL_WORM_RAGE if _raging() else COL_WORM
+
 	## 尾は弱点なので、脈打たせて目立たせる。
 	if not _joints.is_empty():
 		var tail: KanjiSprite = _joints[_joints.size() - 1]
@@ -594,9 +626,10 @@ func _update_charge(delta: float) -> void:
 	if down:
 		## 押している間、少しずつ満ちていく。
 		_charge = minf(_charge + delta / CHARGE_TIME, 1.0)
-		## 引き絞っている間は足を止める。
-		## 狙いを定める動作なので、歩きながら撃てると緊張感が無くなる。
-		hero.can_move = false
+		## 引き絞っている間は足が重くなる。狙いを定める動作なので
+		## ふだんどおりには歩けない。ただし止めてしまうと毒を避ける手が
+		## 無くなるので、動きは残して速さだけ落とす。
+		hero.speed_scale = DRAW_SPEED_SCALE
 		_show_strain()
 
 		## 引き絞りきったまま粘ると、腕が保たなくなる。
@@ -672,10 +705,13 @@ func _show_strain() -> void:
 	hero.scale = Vector2.ONE * (grow + shake)
 
 ## 放ったあと、勇者を元に戻す。
+## 引き絞りで落とした足の速さも、必ずここで戻す。
+## 戻し忘れると、放ったあともずっと重いままになる。
 func _rest_hero() -> void:
 	hero.text = "勇"
 	hero.color = Color.BLACK
 	hero.scale = Vector2.ONE
+	hero.speed_scale = 1.0
 
 ## 引き具合を弓の太さで見せる。細い状態から、ためるほど太くなる。
 func _show_bow_charge() -> void:

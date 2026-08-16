@@ -15,6 +15,11 @@ signal reached_right_edge
 ## false にすると操作を受け付けなくなる（クリア演出中など）。
 var can_move := true
 
+## 移動の速さの倍率。1.0 でふだんの速さ。
+## ステージ3 で弓を引き絞っている間だけ遅くしている。
+## 動きを止めてしまうと毒を避けられなくなるので、止めずに重くする。
+var speed_scale := 1.0
+
 ## 最後に動いた向き。矢を射る方向に使う。
 ## 一度も動いていないときのために、初めは上（目標のある側）を向いておく。
 var facing := Vector2.UP
@@ -37,39 +42,43 @@ func _limit_y() -> float:
 
 ## シネマモードでない通常の移動。画面の四辺とぶつかるもので止まる。
 func _move_normal() -> void:
+	## 進む分と押し戻す分は必ず同じ値を使う。
+	## 片方だけ SPEED のままにすると、遅くしたときにじわじわめり込む。
+	var sp := SPEED * speed_scale
 	if Input.is_action_pressed("ui_right"):
 		facing = Vector2.RIGHT
-		position.x += SPEED
+		position.x += sp
 		if _touching_blocker() or scratch_pos().x > _limit_x():
-			position.x -= SPEED
+			position.x -= sp
 	if Input.is_action_pressed("ui_left"):
 		facing = Vector2.LEFT
-		position.x -= SPEED
+		position.x -= sp
 		if _touching_blocker() or scratch_pos().x < -_limit_x():
-			position.x += SPEED
+			position.x += sp
 	## 上下も画面の外へ出ないように止める（+y が上）。
 	if Input.is_action_pressed("ui_down"):
 		facing = Vector2.DOWN
-		position.y += SPEED
+		position.y += sp
 		if _touching_blocker() or scratch_pos().y < -_limit_y():
-			position.y -= SPEED
+			position.y -= sp
 	if Input.is_action_pressed("ui_up"):
 		facing = Vector2.UP
-		position.y -= SPEED
+		position.y -= sp
 		if _touching_blocker() or scratch_pos().y > _limit_y():
-			position.y += SPEED
+			position.y += sp
 
 ## シネマモード中は左右のみ。右端を越えると次のシーンへ。
 func _move_cinema() -> void:
+	var sp := SPEED * speed_scale
 	if Input.is_action_pressed("ui_right"):
-		position.x += SPEED
+		position.x += sp
 		if _touching_blocker():
-			position.x -= SPEED
+			position.x -= sp
 	if Input.is_action_pressed("ui_left"):
-		position.x -= SPEED
+		position.x -= sp
 		## 左端では画面外に出ないように止める。
 		if _touching_blocker() or scratch_pos().x < -_limit_x():
-			position.x += SPEED
+			position.x += sp
 	## 右端まで歩いたら次の場面へ（ここは止めずに通す）。
 	if scratch_pos().x > 230.0:
 		reached_right_edge.emit()
