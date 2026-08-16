@@ -58,13 +58,20 @@ func _refresh() -> void:
 	## Scratch の回転中心に合わせて絵をずらす。
 	_label.position = -_label.size * pivot
 
+## 座標の変換だけは autoload の `Game` ではなくスクリプトから直に呼ぶ。
+##
+## `to_godot` / `to_scratch` は静的関数なので、autoload の実体は要らない。
+## `Game` と識別子で書くと、テストの `--script` モードでは名前が解決できず、
+## このファイルに依るものすべてが読み込めなくなる（テストの落とし穴）。
+const GameScript := preload("res://scripts/game.gd")
+
 ## Scratch 座標で位置を指定する（go to x: y: に相当）。
 func set_scratch_pos(x: float, y: float) -> void:
-	position = Game.to_godot(x, y)
+	position = GameScript.to_godot(x, y)
 
 ## Scratch 座標を返す。
 func scratch_pos() -> Vector2:
-	return Game.to_scratch(position)
+	return GameScript.to_scratch(position)
 
 ## 当たり判定用の矩形（グローバル座標）。回転・拡大も考慮する。
 func rect() -> Rect2:

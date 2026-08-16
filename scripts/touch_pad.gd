@@ -41,6 +41,11 @@ const BTN_REACH := 42.0
 ## 「戻」の当たる広さ。間違って押さないよう狭くしている。
 const BTN_REACH_SUB := 24.0
 
+## 盤面の幅は定数なので、autoload の実体を通さず直に読む。
+## `Game` と識別子で書くと、テストの --script モードでは名前が解決できず、
+## このファイルに依るものすべてが読み込めなくなる。
+const GameScript := preload("res://scripts/game.gd")
+
 ## 押されているボタンと、その指の id。
 var _pressed := {}
 var _labels := {}
@@ -113,7 +118,7 @@ func _build_backdrop() -> void:
 	var bg := ColorRect.new()
 	bg.color = COL_PAD_BG
 	bg.position = Vector2(0, PAD_TOP)
-	bg.size = Vector2(Game.STAGE_W, PAD_HEIGHT)
+	bg.size = Vector2(GameScript.STAGE_W, PAD_HEIGHT)
 	## 指の操作を邪魔しないようにする。
 	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	## 仕切りやボタンより後ろへ。
@@ -127,7 +132,7 @@ func _build_divider() -> void:
 	var line := ColorRect.new()
 	line.color = COL_DIVIDER
 	line.position = Vector2(0, PAD_TOP - 1.0)
-	line.size = Vector2(Game.STAGE_W, 2.0)
+	line.size = Vector2(GameScript.STAGE_W, 2.0)
 	line.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(line)
 
@@ -185,7 +190,11 @@ func _go_title() -> void:
 	if scene != null and scene.has_method("_to_title"):
 		scene._to_title()
 		return
-	Game.reset()
+	## reset() は autoload が持つ状態を触るので、実体を木からたどる。
+	## こちらは識別子で書けない（上と同じ理由）。
+	var g := get_tree().root.get_node_or_null("Game")
+	if g != null:
+		g.reset()
 	get_tree().change_scene_to_file("res://scenes/title.tscn")
 
 ## 離した指のぶんだけ、押すのをやめる。離すものがあれば true。
