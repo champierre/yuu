@@ -128,6 +128,9 @@ func _ready() -> void:
 
 	_setup_colors()
 	Effects.show_escape_hint(self)   ## 左上に「Esc でタイトルに戻る」
+	## 操作ボタンは、指で触れる機械のときだけ出す。
+	if TouchPad.needed():
+		add_child(TouchPad.new())
 	_rest_hero()   ## 前の遊びの姿が残らないように
 
 	## 先に場面を組んでから待つ。

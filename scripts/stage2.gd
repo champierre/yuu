@@ -79,6 +79,9 @@ func _ready() -> void:
 
 	_setup_colors()
 	Effects.show_escape_hint(self)   ## 左上に「Esc でタイトルに戻る」
+	## 操作ボタンは、指で触れる機械のときだけ出す。
+	if TouchPad.needed():
+		add_child(TouchPad.new())
 	start_scene1()
 	_busy = true
 	await get_tree().create_timer(1.0).timeout

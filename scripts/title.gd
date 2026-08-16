@@ -20,6 +20,9 @@ var _lr_was_down := false      ## 左右キーの押しっぱなしを 1 回と�
 
 func _ready() -> void:
 	_build()
+	## 操作ボタンは、指で触れる機械のときだけ出す。
+	if TouchPad.needed():
+		add_child(TouchPad.new())
 
 func _build() -> void:
 	## 上段（小さめの副題）。
