@@ -92,8 +92,6 @@ const TRAIL_SKIP := 9
 @onready var goal: KanjiSprite = $Goal
 
 var _shoot_was_down := false ## 前のコマでスペースが押されていたか
-var _act_was_down := false  ## 宝箱用。前のコマで押されていたか
-var _act_just_pressed := false ## 宝箱用。このコマで押された瞬間か
 var _charge := 0.0          ## 引き絞り具合（0=細い 〜 1=引き絞りきった）
 var _shooting := false      ## 射っている最中か（弓の位置は演出側が決める）
 var _await_release := false ## 一度キーを離すまで引き絞りを始めない
@@ -130,7 +128,8 @@ func _ready() -> void:
 	## 後から組むと、待っている間に初期配置（全員が原点にいる状態）が見えてしまう。
 	start_scene1()
 	_busy = true
-	await get_tree().create_timer(1.0).timeout
+	if not await wait(1.0):
+		return
 	_busy = false
 
 func _setup_colors() -> void:
@@ -212,7 +211,9 @@ func _emerge_worm() -> void:
 		var k: float = clampf(t / HEAD_EMERGE_TIME, 0.0, 1.0)
 		## 穴からせり上がるように、下から現れて大きくなる。
 		_worm_head.scale = Vector2.ONE * k
-		await get_tree().process_frame
+		if not await next_frame():
+			_emerging_now = false
+			return
 	_worm_head.scale = Vector2.ONE
 
 	## 頭が這い出し、そのあとを節が 1 つずつ追って出てくる。
@@ -240,7 +241,9 @@ func _emerge_worm() -> void:
 				## 出るたびに末尾を「尾」にすると、1 本目から尾が見えてしまう。
 				## 全部出そろってから、いちばん後ろを尾にする。
 		_place_joints()
-		await get_tree().process_frame
+		if not await next_frame():
+			_emerging_now = false
+			return
 
 	## 出そろったので、最後の 1 つを尾にする。
 	_mark_tail()
@@ -315,29 +318,16 @@ func _clear_worm() -> void:
 
 func _process(delta: float) -> void:
 	if _finished:
-		## クリアしたあとも、画面のボタンからの押下だけは見ておく。
-		## _unhandled_input は入力があったときしか呼ばれず、
-		## パッドが送る合図では呼ばれないことがあるため。
-		if TouchPad.take_just_pressed("ui_accept"):
-			_confirm()
+		update_act(true)
+		update_finished_act()
 		return
 	## 演出中でもキーの上げ下げは見ておく。
 	## ここを止めると、演出が明けたときに「押しっぱなし」の記録が
 	## 古いままになり、次の一射が出せなくなる。
-	var shoot_down := Input.is_action_pressed("ui_accept")
+	var shoot_down := act_down()
 
-	## 決定ボタンが「押された瞬間」か。宝箱を開けるのに使う。
-	## 演出中は拾わない。そこで拾うとその 1 回が使われないまま消え、
-	## 遊ぶ人には「1 回目が効かなかった」と見える。
-	if _busy:
-		_act_was_down = shoot_down
-		_act_just_pressed = false
-	else:
-		_act_just_pressed = shoot_down and not _act_was_down
-		_act_was_down = shoot_down
-		## 画面のボタンから押されたぶんも拾う。
-		if TouchPad.take_just_pressed("ui_accept"):
-			_act_just_pressed = true
+	## 決定ボタンの「押した瞬間」は宝箱を開けるのに使う（中身は StageBase）。
+	update_act(_busy)
 
 	## 蟲は演出中も動かし続ける。
 	## ここを止めると、矢が飛んでいる間だけ蟲が固まって見えてしまう。
@@ -475,9 +465,11 @@ func _defeated() -> void:
 	while t < 0.5:
 		t += get_process_delta_time()
 		hero.modulate.a = maxf(1.0 - t / 0.5, 0.0)
-		await get_tree().process_frame
+		if not await next_frame():
+			return
 
-	await get_tree().create_timer(0.4).timeout
+	if not await wait(0.4):
+		return
 	mark.queue_free()
 
 	## 宝箱が閉じた、何も持っていない状態からやり直す。
@@ -559,7 +551,7 @@ func _try_take_bow() -> bool:
 	## 「押した瞬間」だけ開ける。押しっぱなしを見てしまうと、
 	## ボタンを押したまま宝箱の上を通っただけで開いてしまう
 	## （スマホでは移動ボタンを押しながら歩くので、よく起きる）。
-	if hero.touching(chest) and _act_just_pressed:
+	if hero.touching(chest) and act_just_pressed():
 		chest.text = "空箱"
 		Game.got_bow = true
 		bow.visible = true
@@ -589,7 +581,7 @@ func _follow_bow() -> void:
 ## 押している間は引き絞り、離した瞬間に放つ。
 ## 引き絞りは演出を待たず毎フレーム進めるので、太くなっていく様子が見える。
 func _update_charge(delta: float) -> void:
-	var down := Input.is_action_pressed("ui_accept")
+	var down := act_down()
 
 	## 宝箱を開けた押し下げを引き継がない。離すまでは何もしない。
 	if _await_release:
@@ -653,7 +645,8 @@ func _exhaust() -> void:
 		## 肩で息をするように、ゆっくり大きく揺れる。
 		var breathe := sin(t * 8.0) * 0.05
 		hero.scale = Vector2.ONE * (1.0 + STRAIN_GROW + breathe)
-		await get_tree().process_frame
+		if not await next_frame():
+			return
 
 	_rest_hero()
 	hero.can_move = true
@@ -758,7 +751,8 @@ func _cut_tail(during_emerge: bool = false) -> void:
 	var p := tail.position
 	## 当たった所で尾が一瞬弾けてから消える。手応えを出すため。
 	tail.scale = Vector2.ONE * 1.4
-	await get_tree().process_frame
+	if not await next_frame():
+		return
 	tail.queue_free()
 
 	## 落とした尾が砕けて飛び散る。
@@ -776,7 +770,8 @@ func _cut_tail(during_emerge: bool = false) -> void:
 		await _defeat_worm()
 	else:
 		_mark_tail()
-		await get_tree().create_timer(0.25).timeout
+		if not await wait(0.25):
+			return
 		if not during_emerge:
 			_busy = false
 
@@ -792,7 +787,8 @@ func _bounce_off(s: KanjiSprite) -> void:
 	mark.position = s.position
 	await Effects.pop_in(mark, 0.2)
 	## しばらく留めておく。ここが短いと、読む前に消えてしまう。
-	await get_tree().create_timer(0.9).timeout
+	if not await wait(0.9):
+		return
 	await Effects.fade_trail(mark, 0.4)
 
 ## 蟲を倒した。頭が落ちて道が開く。
@@ -805,7 +801,8 @@ func _defeat_worm() -> void:
 	var base_x := head.position.x
 	for i in 20:
 		head.position.x = base_x + randf_range(-3.0, 3.0)
-		await get_tree().process_frame
+		if not await next_frame():
+			return
 	head.position.x = base_x
 
 	## 落ちて消える。
@@ -824,14 +821,16 @@ func _defeat_worm() -> void:
 		v += 900.0 * d
 		head.position.y += v * d
 		head.rotation += d * 2.0
-		await get_tree().process_frame
+		if not await next_frame():
+			return
 	if is_instance_valid(head):
 		head.queue_free()
 
 	## 穴が目標に変わる。蟲がいなくなって、ようやく先へ行ける。
 	await _hole_becomes_goal()
 
-	await get_tree().create_timer(0.6).timeout
+	if not await wait(0.6):
+		return
 	_busy = false
 
 ## 蟲がいなくなった穴が、目標に変わる。
@@ -844,7 +843,8 @@ func _hole_becomes_goal() -> void:
 		t += get_process_delta_time()
 		var k: float = clampf(t / dur, 0.0, 1.0)
 		goal.scale = Vector2.ONE * (1.0 - k)
-		await get_tree().process_frame
+		if not await next_frame():
+			return
 	goal.scale = Vector2.ZERO
 
 	## 目標として現れる。
@@ -912,7 +912,8 @@ func _fly_arrow(targets: Array, dir: Vector2 = Vector2.UP, k: float = 1.0):
 				## 当たった所まで矢を進めてから消す。
 				## 手前で消えると当たった感じがしないため。
 				a.position = obj.position
-				await get_tree().process_frame
+				if not await next_frame():
+					return null
 				a.queue_free()
 				return obj
 
@@ -921,7 +922,8 @@ func _fly_arrow(targets: Array, dir: Vector2 = Vector2.UP, k: float = 1.0):
 		if p.x < -40.0 or p.x > Game.STAGE_W + 40.0 \
 				or p.y < -40.0 or p.y > Game.STAGE_H + 40.0:
 			break
-		await get_tree().process_frame
+		if not await next_frame():
+			return null
 
 	a.queue_free()
 	return null
@@ -942,7 +944,8 @@ func _release_bow() -> void:
 		var overshoot := sin(p * PI) * 0.18
 		bow.position = hero.position + BOW_OFFSET
 		bow.scale = Vector2(lerpf(from, BOW_THIN, e) - overshoot, 1.0)
-		await get_tree().process_frame
+		if not await next_frame():
+			return
 	bow.scale = Vector2(BOW_THIN, 1.0)
 
 # ---------------------------------------------------------------- クリア
@@ -954,7 +957,8 @@ func _finish() -> void:
 	_rest_hero()
 	_charge = 0.0
 
-	await get_tree().create_timer(0.12).timeout
+	if not await wait(0.12):
+		return
 
 	if _left():
 		return

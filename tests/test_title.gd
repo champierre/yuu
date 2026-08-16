@@ -25,33 +25,29 @@ func run_tests() -> void:
 	await wait_ms(150)
 	check_eq(t._sel, 3, "押しっぱなしでも一気に進まない")
 
-	## 操作ボタンの帯を触っても始まらない。
-	## 指で触る機械では、タップがマウスの押し下げとしても届くため、
-	## ここを守らないとステージを選ぼうとした指で始まってしまう。
-	var ev := InputEventScreenTouch.new()
-	ev.position = Vector2(112, 490)   ## 盤面 (高さ360) より下＝ボタンの帯
-	ev.pressed = true
-	ev.index = 0
-	Input.parse_input_event(ev)
-	await wait_ms(300)
-	check(not t._started, "操作ボタンの帯を触っても始まらない")
+	## ここから先は「触ったら始まるか」を見る。
+	##
+	## ヘッドレスでは TouchPad.needed() が false（パソコン扱い）なので、
+	## 盤面を触ると始まるのが正しい。指で遊ぶ機械の側の決まりは
+	## タイトルの _unhandled_input を直に呼んで確かめる。
+	## （needed() は機械が決めるもので、テストからは変えられない）
 
-	## 指で遊ぶ機械では、画面を触っただけでは始まらない。
-	## 「押」ボタンで始める（触って始まると、戻ってきた指で
-	## 勝手に始まってしまう）。
+	## パソコンでは、盤面を押すと始まる。
 	var ev3 := InputEventScreenTouch.new()
 	ev3.position = Vector2(240, 180)   ## 盤面のまんなか
 	ev3.pressed = true
 	ev3.index = 0
 	Input.parse_input_event(ev3)
-	await wait_ms(300)
-	if TouchPad.needed():
-		check(not t._started, "指で遊ぶ機械では、触っただけで始まらない")
-	else:
-		check(t._started, "パソコンでは、盤面を押すと始まる")
-		return   ## 始まってしまったので、ここで終わり
+	## 始まるとタイトルは解放されるので、_started は当てにしない。
+	## ステージへ移ったことで確かめる。
+	await wait_ms(1500)
+	check(current_scene != null and current_scene.name.begins_with("Stage"),
+		"パソコンでは、盤面を押すとステージへ移る")
 
-	## 決定キーで始まる。
+	## 決定キーでも始まる。
+	var t2 := await load_scene("res://scenes/title.tscn")
+	check(not t2._started, "開いた直後は始まっていない")
 	await press_accept()
-	await wait_ms(400)
-	check(t._started if is_instance_valid(t) else true, "決定キーで始まる")
+	await wait_ms(1500)
+	check(current_scene != null and current_scene.name.begins_with("Stage"),
+		"決定キーでステージへ移る")

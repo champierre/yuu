@@ -14,12 +14,22 @@ for t in tests/test_*.gd; do
   # 土台は単体で走らせない
   [ "$t" = "tests/test_helper.gd" ] && continue
   echo "--- $t"
-  if ! "$GODOT" --headless --script "$t" 2>&1 | grep -v "^Godot Engine"; then
+  out=$("$GODOT" --headless --script "$t" 2>&1)
+  status=$?
+  echo "$out" | grep -v "^Godot Engine"
+  # godot はテストの結果を終了コードで返す
+  if [ "$status" -ne 0 ]; then
     failed=1
   fi
-  # godot はテストの結果を終了コードで返す
-  status=${PIPESTATUS[0]}
-  if [ "$status" -ne 0 ]; then
+  # 場面を抜けたあとも演出が回っていると、解放された木を触りにいって落ちる。
+  # ヘッドレスの Godot はそれでも走り続けてしまい、テストは通ったように見える。
+  # 印は stderr にしか出ないので、ここで拾って失敗にする。
+  #
+  # 見るのはこの落ち方だけに絞る。SCRIPT ERROR 全部を失敗にすると、
+  # --script モードで autoload の名前が解決できないだけの
+  # 昔からの出力（kanji_sprite.gd の Game）まで拾ってしまうため。
+  if echo "$out" | grep -qE 'Parameter "data.tree" is null|on a base object of type .null instance.|on a null value'; then
+    echo "  失敗 場面を抜けたあとに演出が動いている（上のエラーを見ること）"
     failed=1
   fi
   echo ""

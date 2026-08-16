@@ -52,8 +52,6 @@ const SWING_RETURN_TIME := 0.30
 var _swinging := false      ## 斧を振っている最中か
 var _trail := false         ## 振り抜き中だけ残像を出す
 var _axe_prev_x := 0.0      ## 歪みの計算用。直前のフレームの斧の x
-var _act_was_down := false  ## 前のコマで決定ボタンが押されていたか
-var _act_just_pressed := false ## このコマで押された瞬間か
 var _scar: KanjiSprite = null   ## 切り口の切り込み（1 つだけ。切るほど大きくなる）
 var _stump: KanjiSprite = null  ## 根元の木。倒れずに残る
 
@@ -74,7 +72,8 @@ func _ready() -> void:
 	## 見えてしまい、一瞬シーン 2 のように見えてしまう。
 	start_scene1()
 	_busy = true                                ## 待っている間は入力を受けない
-	await get_tree().create_timer(1.0).timeout  ## Scratch の「1秒待つ」
+	if not await wait(1.0):                     ## Scratch の「1秒待つ」
+		return
 	_busy = false
 
 func _setup_colors() -> void:
@@ -255,34 +254,14 @@ func start_scene3() -> void:
 # ---------------------------------------------------------------- 毎フレーム処理
 
 func _process(_delta: float) -> void:
-	## 決定ボタンが「押された瞬間」かを毎コマ見ておく。
-	## 使う側（宝箱・木を切る）で見ると、条件に合わない間は
-	## 更新されず、離したことを見落としてしまう。
-	##
-	## 演出中（_busy）や場面の切り替え中は、押されたことにしない。
-	## そこで拾ってしまうと、その 1 回が使われないまま消え、
-	## 遊ぶ人には「1 回目が効かなかった」と見える。
-	var act_down := Input.is_action_pressed("ui_accept")
+	## 決定ボタンの上げ下げは毎コマ見ておく（中身は StageBase）。
 	if _finished:
-		## クリアしたあとも、画面のボタンからの押下だけは見ておく。
-		## _unhandled_input は入力があったときしか呼ばれず、
-		## パッドが送る合図では呼ばれないことがあるため。
-		if TouchPad.take_just_pressed("ui_accept"):
-			_confirm()
-		_act_was_down = act_down
-		_act_just_pressed = false
+		update_act(true)
+		update_finished_act()
 		return
+	update_act(_busy)
 	if _busy:
-		## 押しっぱなしのまま演出が明けたときに、
-		## それを新しい押下と取り違えないよう、状態だけは覚えておく。
-		_act_was_down = act_down
-		_act_just_pressed = false
 		return
-	_act_just_pressed = act_down and not _act_was_down
-	_act_was_down = act_down
-	## 画面のボタンから押されたぶんも拾う。
-	if TouchPad.take_just_pressed("ui_accept"):
-		_act_just_pressed = true
 	match Game.scene_no:
 		1: _process_scene1()
 		2: _process_scene2()
@@ -307,7 +286,7 @@ func _process_scene2() -> void:
 	## 判定は勇者基準（斧は構えの分だけ離れているため）。
 	## 宝箱と同じで「押した瞬間」だけ切る。押しっぱなしを見ると、
 	## ボタンを押したまま木の前を通っただけで切れてしまう。
-	if Game.got_axe and _touching_tree() and _act_just_pressed:
+	if Game.got_axe and _touching_tree() and act_just_pressed():
 		Game.cut_count += 1
 		_show_cut_mark()
 
@@ -333,7 +312,7 @@ func _try_take_axe() -> void:
 	## 「押した瞬間」だけ開ける。押しっぱなしを見てしまうと、
 	## ボタンを押したまま宝箱の上を通っただけで開いてしまう
 	## （スマホでは移動ボタンを押しながら歩くので、よく起きる）。
-	if hero.touching(chest) and _act_just_pressed:
+	if hero.touching(chest) and act_just_pressed():
 		chest.text = "空箱"
 		Game.got_axe = true
 		axe.visible = true
@@ -372,12 +351,14 @@ func _show_cut_mark() -> void:
 	cut_mark.scale = Vector2(s, s)
 
 	## 3. 木に食い込んで急停止。少しめり込んで止まる。
-	await get_tree().create_timer(0.14).timeout
+	if not await wait(0.14):
+		return
 	## 4. 引き抜いて構えに戻す。疲れた感じでゆっくり（ease-out）。
 	await _swing_axe(SWING_HIT_X, AXE_OFFSET.x, SWING_RETURN_TIME, Effects.EASE_OUT)
 	_swinging = false
 
-	await get_tree().create_timer(0.35).timeout
+	if not await wait(0.35):
+		return
 
 	## 「切」が木へ吸い込まれて、そのまま切り込みとして残る。
 	await _drive_cut_into_tree()
@@ -406,7 +387,8 @@ func _drive_cut_into_tree() -> void:
 		var e := Effects.ease_k(k, Effects.EASE_IN)
 		cut_mark.position = from.lerp(target, e)
 		cut_mark.scale = Vector2.ONE * lerpf(from_scale, 0.6, e)
-		await get_tree().process_frame
+		if not await next_frame():
+			return
 
 	## 切り込みは 1 つだけ。増やさずに、切るたび大きくしていく。
 	if _scar == null or not is_instance_valid(_scar):
@@ -434,7 +416,8 @@ func _pop_scar() -> void:
 		t += get_process_delta_time()
 		var k: float = clampf(t / dur, 0.0, 1.0)
 		_scar.scale = Vector2.ONE * (1.0 + sin(k * PI) * 0.35)
-		await get_tree().process_frame
+		if not await next_frame():
+			return
 	if is_instance_valid(_scar):
 		_scar.scale = Vector2.ONE
 
@@ -445,7 +428,8 @@ func _swing_axe(x1: float, x2: float, dur: float, ease_type: int) -> void:
 		t += get_process_delta_time()
 		var k: float = clampf(t / dur, 0.0, 1.0)
 		_place_swinging_axe(lerpf(x1, x2, Effects.ease_k(k, ease_type)))
-		await get_tree().process_frame
+		if not await next_frame():
+			return
 	_place_swinging_axe(x2)
 
 ## 振っている最中の斧の位置と歪み。水平に薙ぐので傾けない。
@@ -472,13 +456,16 @@ func _fell_tree() -> void:
 	var base_x := forest.position.x
 	for i in 50:
 		forest.position.x = base_x + randf_range(-1.0, 1.0)
-		await get_tree().process_frame
+		if not await next_frame():
+			return
 	forest.position.x = base_x
 	## 15 度ずつ 6 回、切り口を軸に左へ倒れる。
 	for i in 6:
 		forest.rotation -= deg_to_rad(15.0)
-		await get_tree().create_timer(0.1).timeout
-	await get_tree().create_timer(1.0).timeout
+		if not await wait(0.1):
+			return
+	if not await wait(1.0):
+		return
 	start_scene3()
 
 ## 目標に到達。その瞬間にゲームを止めてクリア演出に入る。
@@ -487,7 +474,8 @@ func _finish() -> void:
 	hero.can_move = false   ## 到達した瞬間に勇者を止める
 
 	## 1. 一瞬止めて「決まった」感を作る。
-	await get_tree().create_timer(0.12).timeout
+	if not await wait(0.12):
+		return
 
 	## 2. 目標が「達成」に変わり、勢いよく飛び出して弾む。
 	if _left():

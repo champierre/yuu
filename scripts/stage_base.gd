@@ -21,6 +21,55 @@ var _leaving := false        ## この場面を出ていく最中（演出を止
 var _can_restart := false    ## クリア後、決定を受け付けるか
 var _restart_hint: KanjiSprite
 
+## 決定ボタンの「押した瞬間」を見るための記録。
+## 3 つのステージが同じことをしていたので、ここに 1 つだけ持つ。
+var _act_was_down := false    ## 前のコマで押されていたか
+var _act_just_pressed := false ## このコマで押された瞬間か
+
+# ---------------------------------------------------------------- 決定ボタン
+
+## 決定ボタンの上げ下げを見て、「押した瞬間」を記録する。
+## 各ステージは _process の頭でこれを 1 回だけ呼び、
+## 使うときは act_just_pressed() を聞く。
+##
+## 毎コマ呼ぶのが要点。使う側（宝箱に重なったとき等）で見ると、
+## 条件に合わない間は記録が更新されず、離したのを見落とす。
+##
+## `busy` の間は「押した瞬間」にしない。そこで拾うとその 1 回が
+## 使われないまま消え、遊ぶ人には「1 回目が効かなかった」と見える。
+## ただし押しっぱなしの記録だけは更新する。さもないと演出明けに
+## 記録が古いままになり、次の一手が出せなくなる（落とし穴 12）。
+func update_act(busy: bool) -> void:
+	var down := act_down()
+	if busy:
+		_act_was_down = down
+		_act_just_pressed = false
+		return
+	_act_just_pressed = down and not _act_was_down
+	_act_was_down = down
+	## 画面のボタンから押されたぶんも拾う。
+	## パッドが送る合図は次のコマまで届かないので、
+	## それだけを見ていると 1 回目の押下を取りこぼす。
+	if TouchPad.take_just_pressed("ui_accept"):
+		_act_just_pressed = true
+
+## いま決定ボタンが押されているか（押している間ずっと true）。
+func act_down() -> bool:
+	return Input.is_action_pressed("ui_accept")
+
+## このコマで決定ボタンが押された瞬間か。
+func act_just_pressed() -> bool:
+	return _act_just_pressed
+
+## クリアしたあとの決定ボタン。押されていれば次へ進める。
+##
+## _unhandled_input は入力があったときしか呼ばれず、
+## パッドが送る合図では呼ばれないことがあるので、
+## クリア後も毎コマここで見ておく。
+func update_finished_act() -> void:
+	if TouchPad.take_just_pressed("ui_accept"):
+		_confirm()
+
 # ---------------------------------------------------------------- 入力
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -45,6 +94,36 @@ func _unhandled_input(event: InputEvent) -> void:
 ## 続きを進める前にこれで確かめる。
 func _left() -> bool:
 	return _leaving or not is_inside_tree()
+
+## 演出の中で待つときは、この 2 つだけを使う。
+##
+## `await get_tree()` を直に書くと、そのたびに「場面を抜けたか」の
+## 確認を手で足すことになり、書き忘れると落ちる。
+## 実際に、蟲の登場中や斧を振っている最中に「戻」を押すと落ちていた。
+##
+## 待つ前と待ったあとの両方で確かめ、抜けていたら false を返す。
+## 呼ぶ側はこう書く（これで守りを書き忘れようがなくなる）:
+##
+##     if not await next_frame(): return
+##     if not await wait(0.5): return
+##
+## 待ったあとにも確かめるのが要点。待っている間に場面が変わるため。
+## シーンが切り替わると、ノードは解放される前にまず木から外れる。
+## その間 is_instance_valid() は true を返すのに get_tree() は使えない。
+
+## 次のコマまで待つ。まだこの場面にいれば true。
+func next_frame() -> bool:
+	if _left():
+		return false
+	await get_tree().process_frame
+	return not _left()
+
+## 指定の秒数だけ待つ。まだこの場面にいれば true。
+func wait(sec: float) -> bool:
+	if _left():
+		return false
+	await get_tree().create_timer(sec).timeout
+	return not _left()
 
 ## タイトルへ戻る。動いている演出を止めてから抜ける。
 ## 止めないと、解放されたノードを触りにいって固まる。

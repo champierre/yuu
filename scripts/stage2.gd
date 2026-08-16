@@ -58,7 +58,6 @@ var _villager_lines := {}    ## 村人ごとに、どちらのセリフを言う
 var _talk: KanjiSprite       ## 今出ているセリフ
 var _talk_until := 0.0       ## セリフを消す時刻
 var _wander_timer := 0.0
-var _act_was_down := false   ## 調べるキーの押しっぱなしを 1 回として扱う
 var _thief_gone := false     ## 盗人は金を奪うと去る
 
 func _ready() -> void:
@@ -75,7 +74,8 @@ func _ready() -> void:
 		Effects.show_escape_hint(self)
 	start_scene1()
 	_busy = true
-	await get_tree().create_timer(1.0).timeout
+	if not await wait(1.0):
+		return
 	_busy = false
 
 func _setup_colors() -> void:
@@ -180,23 +180,21 @@ func _build_villagers() -> void:
 # ---------------------------------------------------------------- 毎フレーム処理
 
 func _process(delta: float) -> void:
+	## 決定ボタンの上げ下げは毎コマ見ておく（中身は StageBase）。
 	if _finished:
-		## クリアしたあとも、画面のボタンからの押下だけは見ておく。
-		## _unhandled_input は入力があったときしか呼ばれず、
-		## パッドが送る合図では呼ばれないことがあるため。
-		if TouchPad.take_just_pressed("ui_accept"):
-			_confirm()
+		update_act(true)
+		update_finished_act()
 		return
 	_fade_talk(delta)
+	update_act(_busy)
 	if _busy:
-		_act_was_down = Input.is_action_pressed("ui_accept")
 		return
 
 	_wander(delta)
 
 	## 門は開いたら通れるようにする（当たり判定から外す）。
 	## 宝箱・門番・盗人・村人は素通りでき、触れると話が起きるだけ。
-	if _act_pressed():
+	if act_just_pressed():
 		_try_chest()
 
 	_meet_keeper()
@@ -210,18 +208,6 @@ func _process(delta: float) -> void:
 	## 門が開いていれば、目標へ行ける。
 	if Game.gate_open and hero.touching(goal):
 		_finish()
-
-## 調べるキーを「押した瞬間」だけ拾う。
-func _act_pressed() -> bool:
-	var down := Input.is_action_pressed("ui_accept")
-	var just := down and not _act_was_down
-	_act_was_down = down
-	## 画面のボタンから押されたぶんも拾う。
-	## パッドが送る合図は次のコマまで届かないので、
-	## それだけを見ていると 1 回目の押下を取りこぼす。
-	if TouchPad.take_just_pressed("ui_accept"):
-		just = true
-	return just
 
 ## 村人と盗人が街をうろつく。
 func _wander(delta: float) -> void:
@@ -298,7 +284,8 @@ func _forge_iron() -> void:
 	b.set_scratch_pos(40, 0)
 
 	item.visible = false
-	await get_tree().create_timer(0.8).timeout
+	if not await wait(0.8):
+		return
 
 	## 二つが中央へ寄って重なる。
 	var t := 0.0
@@ -312,7 +299,8 @@ func _forge_iron() -> void:
 		var e := Effects.ease_k(k, Effects.EASE_IN)
 		a.position = pa.lerp(mid, e)
 		b.position = pb.lerp(mid, e)
-		await get_tree().process_frame
+		if not await next_frame():
+			return
 	a.queue_free()
 	b.queue_free()
 
@@ -325,7 +313,8 @@ func _forge_iron() -> void:
 	add_child(iron)
 	iron.position = mid
 	await Effects.pop_in(iron, 0.6)
-	await get_tree().create_timer(0.7).timeout
+	if not await wait(0.7):
+		return
 	iron.queue_free()
 
 	## 持ち物が「鉄」になる。
@@ -360,7 +349,8 @@ func _open_gate() -> void:
 	_busy = true
 	hero.can_move = false
 	_say("門番「おお、鉄だな。良かろう、門を開けよう！」", 2.5)
-	await get_tree().create_timer(1.4).timeout
+	if not await wait(1.4):
+		return
 
 	## 二枚の扉が順に開く。
 	await _open_door(gate2)
@@ -382,7 +372,8 @@ func _open_door(door: KanjiSprite) -> void:
 		var k: float = clampf(t / dur, 0.0, 1.0)
 		door.position = from.lerp(to, Effects.ease_k(k, Effects.EASE_OUT))
 		door.modulate.a = 1.0 - k
-		await get_tree().process_frame
+		if not await next_frame():
+			return
 	door.visible = false
 	## 開いた門は通れるようにする。壁の入れ物から外して当たらなくする。
 	if door.get_parent() == wall_root:
@@ -406,7 +397,8 @@ func _rob() -> void:
 	hero.can_move = false
 
 	## 1. 一瞬止まる。何が起きたか分からない間。
-	await get_tree().create_timer(0.15).timeout
+	if not await wait(0.15):
+		return
 
 	## 2. 画面が揺れて「悲」を出す。取られた気持ちを見せる。
 	_shock()
@@ -430,7 +422,8 @@ func _rob() -> void:
 		var k: float = clampf(t / dur, 0.0, 1.0)
 		gold.position = from.lerp(thief.position, Effects.ease_k(k, Effects.EASE_IN))
 		gold.scale = Vector2.ONE * (1.0 - k * 0.5)
-		await get_tree().process_frame
+		if not await next_frame():
+			return
 	gold.queue_free()
 
 	## 4. 持ち物が「金」から「失」に変わる。
@@ -444,7 +437,8 @@ func _rob() -> void:
 	## 5. 勇者がうなだれる。
 	await _slump_hero()
 
-	await get_tree().create_timer(0.6).timeout
+	if not await wait(0.6):
+		return
 
 	## 盗人は左へ逃げて消える。
 	_thief_gone = true
@@ -452,7 +446,8 @@ func _rob() -> void:
 	while run < 1.0 and thief.position.x > -60.0:
 		run += get_process_delta_time()
 		thief.position.x -= 220.0 * get_process_delta_time()
-		await get_tree().process_frame
+		if not await next_frame():
+			return
 	thief.visible = false
 
 	hero.can_move = true
@@ -480,7 +475,11 @@ func _shake_screen(dur: float, power: float) -> void:
 		## だんだん収まる。
 		var p := power * (1.0 - k)
 		position = Vector2(randf_range(-p, p), randf_range(-p, p))
-		await get_tree().process_frame
+		## 抜けるときも、ずらしたままにしない。
+		## 場面のまとめ役ごと動かしているので、戻し忘れると全部ずれる。
+		if not await next_frame():
+			position = Vector2.ZERO
+			return
 	position = Vector2.ZERO
 
 ## 勇者がうなだれる。縦に潰れてから戻る。
@@ -493,7 +492,8 @@ func _slump_hero() -> void:
 		## 前半で沈み、後半で戻る。
 		var sink := sin(k * PI)
 		hero.scale = Vector2(1.0 + sink * 0.2, 1.0 - sink * 0.3)
-		await get_tree().process_frame
+		if not await next_frame():
+			return
 	hero.scale = Vector2.ONE
 
 ## 文字を薄くしながら消す。
@@ -504,7 +504,8 @@ func _fade_out(node: KanjiSprite, dur: float) -> void:
 			return
 		t += get_process_delta_time()
 		node.modulate.a = clampf(1.0 - t / dur, 0.0, 1.0)
-		await get_tree().process_frame
+		if not await next_frame():
+			return
 	if is_instance_valid(node):
 		node.queue_free()
 
@@ -566,7 +567,8 @@ func _finish() -> void:
 	if is_instance_valid(_talk):
 		_talk.queue_free()
 
-	await get_tree().create_timer(0.12).timeout
+	if not await wait(0.12):
+		return
 
 	if _left():
 		return
