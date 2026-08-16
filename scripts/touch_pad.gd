@@ -51,10 +51,20 @@ var _labels := {}
 static func needed() -> bool:
 	if DisplayServer.is_touchscreen_available():
 		return true
-	## Web 版では、触れる画面かどうかを機種名からも見ておく。
-	## 触れる画面があるかの判定だけでは取りこぼす端末があるため。
 	var os := OS.get_name()
-	return os == "Android" or os == "iOS"
+	if os == "Android" or os == "iOS":
+		return true
+	## Web 版だと、上の 2 つでは取りこぼす。
+	## OS.get_name() は機械ではなく "Web" を返すし、
+	## 触れる画面があるかの判定も、ブラウザによっては false になる。
+	## そこでブラウザ自身に「指で触る機械か」を聞く。
+	if os == "Web":
+		return JavaScriptBridge.eval("""
+			(('ontouchstart' in window) ||
+			 (navigator.maxTouchPoints > 0) ||
+			 /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent))
+		""", true) == true
+	return false
 
 func _ready() -> void:
 	## 指の動きを拾うため、画面より手前に置く。
