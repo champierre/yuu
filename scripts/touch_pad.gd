@@ -203,6 +203,23 @@ func _release(finger: int) -> bool:
 		_labels[action].color = COL_BTN
 	return true
 
+## 場面が変わってこのボタンが消えるとき、押したままのものを全部離す。
+##
+## ボタンを押すと場面が切り替わることがある（タイトルの「押」、ステージの「戻」）。
+## そのとき指を離す前にこのノードごと消えるので、_release が呼ばれず、
+## 「押しっぱなし」の記録だけが Input に残ってしまう。
+##
+## 実際に、タイトルで「押」を押してステージ1 に入り、一度も「押」を
+## 押さないまま「戻」で帰ると、残った ui_accept をタイトルが拾って
+## すぐステージ1 が始まり直してしまっていた。
+func _exit_tree() -> void:
+	for action in _pressed.values():
+		_send(action, false)
+	_pressed.clear()
+	## 「押した瞬間」の記録も持ち越さない。
+	## 次の場面がこれを拾うと、押していないのに押したことになる。
+	just_pressed.clear()
+
 ## キーが押された（離された）ことにして、ゲーム側へ流す。
 ## こうしておくと、ゲーム側はキーボードと同じ書き方のままでよい。
 func _send(action: String, pressed: bool) -> void:
