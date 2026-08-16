@@ -271,12 +271,19 @@ func _process(_delta: float) -> void:
 	## 決定ボタンが「押された瞬間」かを毎コマ見ておく。
 	## 使う側（宝箱・木を切る）で見ると、条件に合わない間は
 	## 更新されず、離したことを見落としてしまう。
+	##
+	## 演出中（_busy）や場面の切り替え中は、押されたことにしない。
+	## そこで拾ってしまうと、その 1 回が使われないまま消え、
+	## 遊ぶ人には「1 回目が効かなかった」と見える。
 	var act_down := Input.is_action_pressed("ui_accept")
+	if _finished or _busy:
+		## 押しっぱなしのまま演出が明けたときに、
+		## それを新しい押下と取り違えないよう、状態だけは覚えておく。
+		_act_was_down = act_down
+		_act_just_pressed = false
+		return
 	_act_just_pressed = act_down and not _act_was_down
 	_act_was_down = act_down
-
-	if _finished or _busy:
-		return
 	match Game.scene_no:
 		1: _process_scene1()
 		2: _process_scene2()

@@ -46,3 +46,25 @@ func run_tests() -> void:
 	await press_accept()
 	await wait_ms(300)
 	check(G.cut_count > before, "重なってから押すと切れる")
+
+	## 6. 起動の待ち（1 秒）が明けた直後でも、1 回目の押下で開くこと。
+	##    待っている間もキーの見張りは動いているので、
+	##    そこで押しっぱなしと記録されると 1 回目が無視されてしまう。
+	change_scene_to_file("res://scenes/main.tscn")
+	await wait_ms(300)          ## まだ起動の待ちの最中
+	var s2 := current_scene
+	var G2 := game()
+	s2.hero.position = s2.chest.position
+	## 待っている間からボタンを押し始める（スマホでは連打しがち）。
+	key(KEY_SPACE, true)
+	await wait_ms(1500)         ## 待ちが明ける
+	key(KEY_SPACE, false)
+	await wait_ms(200)
+	## 押し続けていただけなので、まだ開いていないのが正しい。
+	check(not G2.got_axe, "待ちの間の押しっぱなしでは開かない")
+	## 明けてから改めて 1 回押す → ここで開くべき。
+	key(KEY_SPACE, true)
+	await wait_ms(200)
+	key(KEY_SPACE, false)
+	await wait_ms(200)
+	check(G2.got_axe, "待ちが明けたあと 1 回目の押下で開く")

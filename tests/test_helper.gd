@@ -18,6 +18,11 @@ func _main() -> void:
 	if _failed > 0:
 		print("結果: %d 件中 %d 件 失敗" % [_passed + _failed, _failed])
 		quit(1)
+	elif _passed == 0:
+		## 1 件も確かめずに終わったら、それは通ったのではなく
+		## 走れていない。素通りさせると、壊れていても気づけない。
+		print("結果: 1 件も確かめていない（テストが走っていない）")
+		quit(1)
 	else:
 		print("結果: %d 件すべて通った" % _passed)
 		quit(0)
