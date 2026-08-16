@@ -24,7 +24,7 @@ const COL_THIEF := Color("#7a3f7a")    ## 盗人
 const COL_GOAL := Color("#000000")     ## 目標
 const COL_DONE := Color("#3f9e44")     ## 達成
 const COL_SUB := Color("#555555")      ## 案内文字
-const COL_SHOCK := Color("#d02020")    ## 衝撃
+const COL_SHOCK := Color("#3a5a9e")    ## 悲しみ（青。赤だと怒りに見えるため）
 
 ## 壁の高さ。ここから上（目標側）へは門を通らないと行けない。
 const WALL_Y := 75.0
@@ -404,7 +404,7 @@ func _rob() -> void:
 	## 1. 一瞬止まる。何が起きたか分からない間。
 	await get_tree().create_timer(0.15).timeout
 
-	## 2. 画面が揺れて「衝撃」を出す。取られた驚きを見せる。
+	## 2. 画面が揺れて「悲」を出す。取られた気持ちを見せる。
 	_shock()
 	await _shake_screen(0.45, 9.0)
 
@@ -454,10 +454,11 @@ func _rob() -> void:
 	hero.can_move = true
 	_busy = false
 
-## 「衝」の字を大きく出して、すぐ消す。取られた瞬間の驚き。
+## 「悲」の字を大きく出して、すぐ消す。取られた瞬間の気持ち。
+## この悲しみ（金を失うこと）が、のちに「鉄」へつながる。
 func _shock() -> void:
 	var mark := KanjiSprite.new()
-	mark.text = "衝"
+	mark.text = "悲"
 	mark.color = COL_SHOCK
 	mark.font_size = 72
 	mark.z_index = 15
