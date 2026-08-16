@@ -17,6 +17,7 @@
 | `scripts/stage1.gd` | ステージ1「斧」の進行 |
 | `scripts/stage2.gd` | ステージ2「鉄」の進行 |
 | `scripts/stage3.gd` | ステージ3「蟲」の進行 |
+| `scripts/stage4.gd` | ステージ4（作りかけ。`?debug=true` のときだけ遊べる） |
 | `scripts/title.gd` | タイトルとステージ選択 |
 
 ステージは 1 つにつき `.tscn` + `.gd` の組。`Game.STAGE_SCENES` が番号とファイルを結んでいる。
@@ -184,6 +185,25 @@ Web のときは `JavaScriptBridge` でブラウザ自身に聞いている。
 画面に出す案内の文言（「スペース」か「押」か）も
 `TouchPad.accept_name()` / `accept_key_name()` / `move_name()` で決まる。
 **文言を足すときは直書きせず、ここを通す。**
+
+### 15. 「最後のステージ」は `Game.last_stage()` に聞く
+
+`STAGE_MAX`（=3）は**普段遊べる最後**で、作りかけのステージはその先にある。
+`?debug=true` で開いたときだけ `last_stage()` が 4 を返し、
+タイトルに並ぶ数も、クリア後に「次へ」を出すかも、そこで決まる。
+
+**`Game.STAGE_MAX` と直に比べない。** 比べると、debug のときだけ
+「次のステージがあるのに『もう一度』が出る」という食い違いが起きる。
+
+`Game.debug` は autoload の `_ready()` で一度だけ決める
+（Web はアドレスの `?debug=true`、パソコンは `godot -- debug=true`）。
+テストからは直に代入してよい。
+**`_ready()` より前（`_initialize` の直後）はまだ false なので、
+1 コマ待ってから見ること。**
+
+作りかけのステージを足すときは `STAGE_SCENES` に番号を足し、
+`DEBUG_STAGE_MAX` を伸ばす。できあがったら `STAGE_MAX` を伸ばして
+普段の遊びに出す。
 
 ## 不具合を直すときは TDD で
 

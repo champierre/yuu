@@ -11,9 +11,18 @@ const STAGE_SCENES := {
 	1: "res://scenes/stage1.tscn",
 	2: "res://scenes/stage2.tscn",
 	3: "res://scenes/stage3.tscn",
+	4: "res://scenes/stage4.tscn",   ## 作りかけ。debug のときだけ入れる
 }
-## 最後のステージ番号。クリア後に「次へ」を出すか「もう一度」を出すかの判断に使う。
+## 普段遊べる最後のステージ番号。
+## ここまでが「できあがっているステージ」で、遊ぶ人にはこれしか見せない。
 const STAGE_MAX := 3
+## debug のときに遊べる最後のステージ番号。
+## 作りかけのステージを試すための番号なので、STAGE_MAX より先まで含む。
+const DEBUG_STAGE_MAX := 4
+
+## 作りかけのステージまで見せるか。起動したときに一度だけ決める。
+## テストからは直に書き換えてよい（機械の都合を持ち込まないため）。
+var debug := false
 
 ## Scratch 変数
 var scene_no: int = 1        ## ステージの中の場面番号（1 始まり）
@@ -31,6 +40,37 @@ var got_iron: bool = false    ## 金と失が合わさって鉄になった
 var gate_open: bool = false   ## 門番が門を開けた
 
 signal scene_changed(no: int)
+
+func _ready() -> void:
+	debug = _detect_debug()
+
+## 作りかけのステージを見せてよいか、遊んでいる場所から判断する。
+##
+## Web 版はアドレスの後ろ（?debug=true）を見る。
+## 遊ぶ人が普通に開いたときは付いていないので、作りかけは出てこない。
+##
+## パソコンで試すときは起動の引数で渡す:
+##
+##     godot -- debug=true
+##
+## Web かどうかは OS.get_name() で見る（落とし穴 14）。
+## JavaScriptBridge はブラウザの中でしか動かないので、必ずこの中で呼ぶ。
+func _detect_debug() -> bool:
+	if OS.get_name() == "Web":
+		return JavaScriptBridge.eval("""
+			new URLSearchParams(location.search).get('debug') === 'true'
+		""", true) == true
+	## 引数は「--」の前後どちらに書かれても拾えるようにする。
+	for a in OS.get_cmdline_args() + OS.get_cmdline_user_args():
+		if a == "debug=true" or a == "--debug=true":
+			return true
+	return false
+
+## いま遊べる最後のステージ番号。
+## タイトルの選択肢も、クリア後に「次へ」を出すかも、すべてこれで決める。
+## STAGE_MAX を直に見ると、debug のときだけ増える分を書き漏らす。
+func last_stage() -> int:
+	return DEBUG_STAGE_MAX if debug else STAGE_MAX
 
 ## Scratch 座標 -> Godot 座標（左上原点・下が +Y）へ変換する。
 static func to_godot(x: float, y: float) -> Vector2:
@@ -75,6 +115,9 @@ func reset_stage() -> void:
 ## 指定したステージへ移る。
 ## ステージ固有の状態を捨ててから読み込むので、前のステージの持ち物は残らない。
 func goto_stage(tree: SceneTree, no: int) -> void:
+	## 遊べない番号（作りかけを debug 以外で指す等）は無かったことにする。
+	if not STAGE_SCENES.has(no) or no > last_stage():
+		return
 	stage_no = no
 	reset_stage()
 	tree.change_scene_to_file(STAGE_SCENES[no])
