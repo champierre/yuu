@@ -1,4 +1,4 @@
-extends Node2D
+extends StageBase
 ## ステージ 2「鉄」。Scratch 版「『勇』の冒険2」(427402420) の移植。
 ##
 ## 【解き方】漢字の足し算が答え。
@@ -14,16 +14,12 @@ extends Node2D
 
 const COL_WALL := Color("#7a6a55")     ## 壁
 const COL_GATE := Color("#66421f")     ## 門
-const COL_CHEST := Color("#bb3023")    ## 宝箱
 const COL_GOLD := Color("#e0b020")     ## 金
 const COL_LOST := Color("#8a8a8a")     ## 失
 const COL_IRON := Color("#5a7a8a")     ## 鉄
 const COL_KEEPER := Color("#33339e")   ## 門番
 const COL_VILLAGER := Color("#3f9e44") ## 村人
 const COL_THIEF := Color("#7a3f7a")    ## 盗人
-const COL_GOAL := Color("#000000")     ## 目標
-const COL_DONE := Color("#3f9e44")     ## 達成
-const COL_SUB := Color("#555555")      ## 案内文字
 const COL_SHOCK := Color("#3a5a9e")    ## 悲しみ（青。赤だと怒りに見えるため）
 
 ## 壁の高さ。ここから上（目標側）へは門を通らないと行けない。
@@ -59,11 +55,6 @@ const TALK_REACH := 26.0
 
 var _villagers: Array = []
 var _villager_lines := {}    ## 村人ごとに、どちらのセリフを言うか
-var _busy := false           ## 演出中は入力を無視する
-var _finished := false
-var _leaving := false        ## この場面を出ていく最中か（演出を止める合図）
-var _can_restart := false
-var _restart_hint: KanjiSprite
 var _talk: KanjiSprite       ## 今出ているセリフ
 var _talk_until := 0.0       ## セリフを消す時刻
 var _wander_timer := 0.0
@@ -598,61 +589,4 @@ func _finish() -> void:
 		_show_end_hint("%sで次のステージへ" % TouchPad.accept_key_name())
 	else:
 		_show_end_hint("%sでもう一度" % TouchPad.accept_key_name())
-
-func _show_end_hint(text: String) -> void:
-	## 途中でタイトルへ抜けていたら、もう何もしない。
-	if _left():
-		return
-	_restart_hint = KanjiSprite.new()
-	_restart_hint.text = text
-	_restart_hint.color = COL_SUB
-	_restart_hint.font_size = 16
-	_restart_hint.z_index = 11
-	add_child(_restart_hint)
-	_restart_hint.set_scratch_pos(0, -60)
-
-	## この瞬間に押していたキーを拾わないよう、少し待ってから受け付ける。
-	await get_tree().create_timer(0.5).timeout
-	_can_restart = true
-	Effects.blink(_restart_hint, func(): return _can_restart)
-
-func _confirm() -> void:
-	if not _can_restart:
-		return
-	_can_restart = false
-	if Game.stage_no < Game.STAGE_MAX:
-		Game.goto_stage(get_tree(), Game.stage_no + 1)
-	else:
-		Game.reset()
-		get_tree().change_scene_to_file(Game.STAGE_SCENES[1])
-
-## この場面をもう離れたか。演出は await をまたぐので、
-## 続きを進める前にこれで確かめる。
-func _left() -> bool:
-	return _leaving or not is_inside_tree()
-
-func _to_title() -> void:
-	## 動いている演出を止めてから抜ける。
-	## 止めないと、解放されたノードを触りにいって固まる。
-	_leaving = true
-	_finished = true
-	_can_restart = false
-	Game.reset()
-	get_tree().change_scene_to_file("res://scenes/title.tscn")
-
-func _unhandled_input(event: InputEvent) -> void:
-	## Esc（スマホでは「戻」ボタン）でいつでもタイトルへ戻れる。
-	if event.is_action_pressed("ui_cancel"):
-		_to_title()
-		return
-	if not _can_restart:
-		return
-	## 画面を触って進められるのは、指で遊ぶ機械ではないときだけ。
-	## 指で遊ぶ機械では、すべて画面のボタンで操作する。
-	## 触っただけで進むと、意図しない所で先へ行ってしまう。
-	if event is InputEventMouseButton and event.pressed:
-		if not TouchPad.needed():
-			_confirm()
-	elif event.is_action_pressed("ui_accept"):
-		_confirm()
 
