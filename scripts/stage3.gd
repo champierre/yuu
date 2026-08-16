@@ -102,6 +102,8 @@ var _finished := false      ## クリア後は完全に停止する
 var _can_restart := false   ## クリア後、次へ進むのを受け付けるか
 var _restart_hint: KanjiSprite
 var _shoot_was_down := false ## 前のコマでスペースが押されていたか
+var _act_was_down := false  ## 宝箱用。前のコマで押されていたか
+var _act_just_pressed := false ## 宝箱用。このコマで押された瞬間か
 var _charge := 0.0          ## 引き絞り具合（0=細い 〜 1=引き絞りきった）
 var _leaving := false       ## この場面を出ていく最中か（演出を止める合図）
 var _shooting := false      ## 射っている最中か（弓の位置は演出側が決める）
@@ -324,11 +326,29 @@ func _clear_worm() -> void:
 
 func _process(delta: float) -> void:
 	if _finished:
+		## クリアしたあとも、画面のボタンからの押下だけは見ておく。
+		## _unhandled_input は入力があったときしか呼ばれず、
+		## パッドが送る合図では呼ばれないことがあるため。
+		if TouchPad.take_just_pressed("ui_accept"):
+			_confirm()
 		return
 	## 演出中でもキーの上げ下げは見ておく。
 	## ここを止めると、演出が明けたときに「押しっぱなし」の記録が
 	## 古いままになり、次の一射が出せなくなる。
 	var shoot_down := Input.is_action_pressed("ui_accept")
+
+	## 決定ボタンが「押された瞬間」か。宝箱を開けるのに使う。
+	## 演出中は拾わない。そこで拾うとその 1 回が使われないまま消え、
+	## 遊ぶ人には「1 回目が効かなかった」と見える。
+	if _busy:
+		_act_was_down = shoot_down
+		_act_just_pressed = false
+	else:
+		_act_just_pressed = shoot_down and not _act_was_down
+		_act_was_down = shoot_down
+		## 画面のボタンから押されたぶんも拾う。
+		if TouchPad.take_just_pressed("ui_accept"):
+			_act_just_pressed = true
 
 	## 蟲は演出中も動かし続ける。
 	## ここを止めると、矢が飛んでいる間だけ蟲が固まって見えてしまう。
@@ -547,7 +567,10 @@ func _move_worm(delta: float) -> void:
 func _try_take_bow() -> bool:
 	if Game.got_bow or not chest.visible:
 		return false
-	if hero.touching(chest) and Input.is_action_pressed("ui_accept"):
+	## 「押した瞬間」だけ開ける。押しっぱなしを見てしまうと、
+	## ボタンを押したまま宝箱の上を通っただけで開いてしまう
+	## （スマホでは移動ボタンを押しながら歩くので、よく起きる）。
+	if hero.touching(chest) and _act_just_pressed:
 		chest.text = "空箱"
 		Game.got_bow = true
 		bow.visible = true
@@ -1007,9 +1030,12 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if not _can_restart:
 		return
+	## 画面を触って進められるのは、指で遊ぶ機械ではないときだけ。
+	## 指で遊ぶ機械では、すべて画面のボタンで操作する。
+	## 触っただけで進むと、意図しない所で先へ行ってしまう。
 	if event is InputEventMouseButton and event.pressed:
-		_confirm()
-	elif event is InputEventKey and event.pressed and not event.echo:
-		if event.keycode == KEY_SPACE or event.keycode == KEY_ENTER \
-				or event.keycode == KEY_KP_ENTER:
+		if not TouchPad.needed():
 			_confirm()
+	elif event.is_action_pressed("ui_accept"):
+		_confirm()
+

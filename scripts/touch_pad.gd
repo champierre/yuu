@@ -45,6 +45,11 @@ const BTN_REACH_SUB := 24.0
 var _pressed := {}
 var _labels := {}
 
+## このコマで押されたボタン。場面はこれを見て「押した瞬間」を知る。
+## Input.parse_input_event で送った合図は次のコマまで届かず、
+## そのままだと 1 回目の押下を取りこぼすため。
+static var just_pressed := {}
+
 ## この端末で操作ボタンが要るか。
 ## 指で触れる画面を持つ機械（スマホ・タブレット）のときだけ出す。
 ## パソコンはキーボードで遊べるので、盤面の邪魔をしないよう出さない。
@@ -64,6 +69,13 @@ static func needed() -> bool:
 			 (navigator.maxTouchPoints > 0) ||
 			 /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent))
 		""", true) == true
+	return false
+
+## 「押した瞬間」だったかを聞く。1 度聞いたら消える。
+static func take_just_pressed(action: String) -> bool:
+	if just_pressed.has(action):
+		just_pressed.erase(action)
+		return true
 	return false
 
 func _ready() -> void:
@@ -152,11 +164,29 @@ func _press_at(pos: Vector2, finger: int) -> bool:
 		if pos.distance_to(center) > reach:
 			continue
 		_pressed[finger] = b["action"]
-		_send(b["action"], true)
 		if _labels.has(b["action"]):
 			_labels[b["action"]].color = COL_BTN_ON
+		## 「戻」はここで直に帰す。
+		## 送った合図（InputEventAction）は場面の _unhandled_input まで
+		## 流れないことがあり、待っていても戻れないため。
+		if b["action"] == "ui_cancel":
+			_go_title()
+			return true
+		_send(b["action"], true)
+		## 押した瞬間を覚えておく。次のコマの終わりに消す。
+		just_pressed[b["action"]] = true
 		return true
 	return false
+
+## タイトルへ帰る。動いている演出を止めてから抜ける。
+func _go_title() -> void:
+	var scene := get_tree().current_scene
+	## 場面が後始末の手を持っていれば、それに任せる。
+	if scene != null and scene.has_method("_to_title"):
+		scene._to_title()
+		return
+	Game.reset()
+	get_tree().change_scene_to_file("res://scenes/title.tscn")
 
 ## 離した指のぶんだけ、押すのをやめる。離すものがあれば true。
 func _release(finger: int) -> bool:

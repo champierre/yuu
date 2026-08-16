@@ -134,15 +134,15 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("ui_accept"):
 		_start()
 		return
-	## 盤面のどこかを触っても始める。
-	## 操作ボタンの帯（盤面より下）は除く。そこを触るのは
-	## ステージを選ぶためで、始めたいわけではない。
+	## 画面を触って始められるのは、指で遊ぶ機械ではないときだけ。
+	##
+	## 指で遊ぶ機械では「押」ボタンで始める。触っただけで始まると、
+	## ステージを選ぼうとしたり、「戻」で帰ってきた指がまだ画面に
+	## ついていたりするだけで、勝手に始まってしまう。
+	if TouchPad.needed():
+		return
 	if event is InputEventMouseButton and event.pressed:
-		if not _on_pad(event.position):
-			_start()
-	elif event is InputEventScreenTouch and event.pressed:
-		if not _on_pad(event.position):
-			_start()
+		_start()
 
 ## その場所が操作ボタンの帯の中か。
 ## 帯は盤面 (480x360) より下にある。
