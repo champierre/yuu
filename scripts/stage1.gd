@@ -31,9 +31,6 @@ const SWING_START_X := 26.0
 const SWING_HIT_X := -20.0
 ## 振っている間の高さ（勇者の肩の高さで水平に薙ぐ）。
 const SWING_Y := -10.0
-## 加速のしかた。等速だと機械的なので、場面ごとに緩急をつける。
-## 値は Effects.ease_k に渡すので、あちらの enum と並び順を合わせてある。
-enum { EASE_IN, EASE_OUT }
 
 ## この速さ (px/秒) で歪みが最大になる。
 const AXE_MAX_SPEED := 700.0
@@ -368,11 +365,11 @@ func _show_cut_mark() -> void:
 	_axe_prev_x = AXE_OFFSET.x
 
 	## 1. 振りかぶり。ゆっくり右へ引きながら、最後にタメる（ease-out）。
-	await _swing_axe(AXE_OFFSET.x, SWING_START_X, SWING_WINDUP_TIME, EASE_OUT)
+	await _swing_axe(AXE_OFFSET.x, SWING_START_X, SWING_WINDUP_TIME, Effects.EASE_OUT)
 	## 2. 振り抜き。止まった状態から一気に加速する（ease-in）。
 	##    残像を置いて、水平に薙いだ軌跡を見せる。
 	_trail = true
-	await _swing_axe(SWING_START_X, SWING_HIT_X, SWING_STRIKE_TIME, EASE_IN)
+	await _swing_axe(SWING_START_X, SWING_HIT_X, SWING_STRIKE_TIME, Effects.EASE_IN)
 	_trail = false
 
 	## 命中の瞬間に「切」を表示する。
@@ -387,7 +384,7 @@ func _show_cut_mark() -> void:
 	## 3. 木に食い込んで急停止。少しめり込んで止まる。
 	await get_tree().create_timer(0.14).timeout
 	## 4. 引き抜いて構えに戻す。疲れた感じでゆっくり（ease-out）。
-	await _swing_axe(SWING_HIT_X, AXE_OFFSET.x, SWING_RETURN_TIME, EASE_OUT)
+	await _swing_axe(SWING_HIT_X, AXE_OFFSET.x, SWING_RETURN_TIME, Effects.EASE_OUT)
 	_swinging = false
 
 	await get_tree().create_timer(0.35).timeout
@@ -416,7 +413,7 @@ func _drive_cut_into_tree() -> void:
 		t += get_process_delta_time()
 		var k: float = clampf(t / dur, 0.0, 1.0)
 		## 勢いよく根元へ食い込む。
-		var e := Effects.ease_k(k, EASE_IN)
+		var e := Effects.ease_k(k, Effects.EASE_IN)
 		cut_mark.position = from.lerp(target, e)
 		cut_mark.scale = Vector2.ONE * lerpf(from_scale, 0.6, e)
 		await get_tree().process_frame

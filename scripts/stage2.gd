@@ -46,8 +46,6 @@ const THIEF_RIGHT_LIMIT := -20.0
 ## 話しかけられたときの間合い。
 const TALK_REACH := 26.0
 
-## 加速のしかた。Effects.ease_k に渡すので、あちらの enum と並び順を合わせてある。
-enum { EASE_IN, EASE_OUT }
 
 @onready var wall_root: Node2D = $Wall
 @onready var hero: KanjiSprite = $Hero
@@ -320,7 +318,7 @@ func _forge_iron() -> void:
 	while t < dur:
 		t += get_process_delta_time()
 		var k: float = clampf(t / dur, 0.0, 1.0)
-		var e := Effects.ease_k(k, EASE_IN)
+		var e := Effects.ease_k(k, Effects.EASE_IN)
 		a.position = pa.lerp(mid, e)
 		b.position = pb.lerp(mid, e)
 		await get_tree().process_frame
@@ -391,7 +389,7 @@ func _open_door(door: KanjiSprite) -> void:
 	while t < dur:
 		t += get_process_delta_time()
 		var k: float = clampf(t / dur, 0.0, 1.0)
-		door.position = from.lerp(to, Effects.ease_k(k, EASE_OUT))
+		door.position = from.lerp(to, Effects.ease_k(k, Effects.EASE_OUT))
 		door.modulate.a = 1.0 - k
 		await get_tree().process_frame
 	door.visible = false
@@ -439,7 +437,7 @@ func _rob() -> void:
 	while t < dur:
 		t += get_process_delta_time()
 		var k: float = clampf(t / dur, 0.0, 1.0)
-		gold.position = from.lerp(thief.position, Effects.ease_k(k, EASE_IN))
+		gold.position = from.lerp(thief.position, Effects.ease_k(k, Effects.EASE_IN))
 		gold.scale = Vector2.ONE * (1.0 - k * 0.5)
 		await get_tree().process_frame
 	gold.queue_free()

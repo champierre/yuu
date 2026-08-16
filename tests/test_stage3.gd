@@ -49,22 +49,20 @@ func run_tests() -> void:
 	## 全部落とすと蟲が倒れ、穴が目標に変わる。
 	## 残りを 1 つずつ落とす。最後の 1 つで撃破の演出に入るので、
 	## そこは終わりまで待つ。
+	## _cut_tail を直に呼ぶので _busy は立たない。
+	## 待つ目印にはできないため、字が変わるのを見る。
 	while not s._joints.is_empty():
-		var was_last: bool = s._joints.size() == 1
 		await s._cut_tail()
-		if was_last:
-			for i in 400:
-				if not s._busy:
-					break
-				await wait_ms(50)
-		else:
-			await wait_ms(300)
+		await wait_ms(300)
 	check(s._worm_head == null, "節を全部落とすと蟲が倒れる")
 	## 頭が落ちて、穴が目標に変わるまで待つ。
 	## _busy を見るだけだと、演出の合間に一瞬 false になることがあるので、
 	## 変わったかどうかを直に見る。
-	for i in 400:
+	## 頭が落ちて（0.8 秒）、穴が閉じて目標が現れる（約 1 秒）まで待つ。
+	## 演出の合間に _busy が一瞬 false になることがあるので、
+	## 目印にはせず、変わったかどうかを直に見る。
+	for i in 200:
 		if s.goal.text == "目標":
 			break
-		await wait_ms(50)
+		await wait_ms(100)
 	check_eq(s.goal.text, "目標", "穴が目標に変わる")

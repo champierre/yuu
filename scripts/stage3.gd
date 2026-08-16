@@ -36,8 +36,6 @@ const EXHAUST_TIME := 1.4
 ## 弓を構える位置（勇者から見て右上）。ステージ 1 の斧と同じ考え方。
 const BOW_OFFSET := Vector2(16, -16)
 
-## 加速のしかた。Effects.ease_k に渡すので、あちらの enum と並び順を合わせてある。
-enum { EASE_IN, EASE_OUT }
 
 ## 引き絞りきるまでの時間。押しっぱなしでこの秒数かけて満ちる。
 const CHARGE_TIME := 0.8
@@ -539,7 +537,7 @@ func _advance_worm_head(delta: float) -> void:
 	if _emerging < 1.0:
 		_emerging = minf(_emerging + delta / EMERGE_MOVE_TIME, 1.0)
 		var hole := Game.to_godot(0, HOLE_Y)
-		_worm_head.position = hole.lerp(target, Effects.ease_k(_emerging, EASE_OUT))
+		_worm_head.position = hole.lerp(target, Effects.ease_k(_emerging, Effects.EASE_OUT))
 	else:
 		_worm_head.position = target
 	## 軌跡を刻む。
@@ -939,7 +937,7 @@ func _release_bow() -> void:
 	while t < RELEASE_TIME:
 		t += get_process_delta_time()
 		var p: float = clampf(t / RELEASE_TIME, 0.0, 1.0)
-		var e := Effects.ease_k(p, EASE_OUT)
+		var e := Effects.ease_k(p, Effects.EASE_OUT)
 		## 行き過ぎてから戻ることで、放った反動に見せる。
 		var overshoot := sin(p * PI) * 0.18
 		bow.position = hero.position + BOW_OFFSET
