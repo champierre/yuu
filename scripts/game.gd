@@ -57,9 +57,14 @@ func _ready() -> void:
 ## JavaScriptBridge はブラウザの中でしか動かないので、必ずこの中で呼ぶ。
 func _detect_debug() -> bool:
 	if OS.get_name() == "Web":
-		return JavaScriptBridge.eval("""
-			new URLSearchParams(location.search).get('debug') === 'true'
-		""", true) == true
+		## アドレスの後ろをそのまま受け取って、こちらで見る。
+		##
+		## `URLSearchParams` は使わない。Godot の JavaScriptBridge が動かす
+		## 場所では見つからず、そこで関数ごと止まってしまう
+		## （エラーも出ないので、debug が常に false のままになっていた）。
+		## 素の `location.search` なら確実に取れる。
+		var search := str(JavaScriptBridge.eval("location.search", true))
+		return "debug=true" in search
 	## 引数は「--」の前後どちらに書かれても拾えるようにする。
 	for a in OS.get_cmdline_args() + OS.get_cmdline_user_args():
 		if a == "debug=true" or a == "--debug=true":
