@@ -208,6 +208,12 @@ func _emerge_worm() -> void:
 	_worm_head.position = hole
 	var t := 0.0
 	while t < HEAD_EMERGE_TIME:
+		## 場面を抜けたら、その場でやめる。
+		## await をまたぐ間にシーンが変わると、ノードは解放される前に
+		## まず木から外れる。そのまま続けると get_tree() が使えず落ちる。
+		if _left():
+			_emerging_now = false
+			return
 		t += get_process_delta_time()
 		var k: float = clampf(t / HEAD_EMERGE_TIME, 0.0, 1.0)
 		## 穴からせり上がるように、下から現れて大きくなる。
@@ -221,6 +227,9 @@ func _emerge_worm() -> void:
 	var appeared := 0
 	var wait := 0.0
 	while _emerging < 1.0 or appeared < JOINT_COUNT:
+		if _left():
+			_emerging_now = false
+			return
 		var d := get_process_delta_time()
 		_advance_worm_head(d)
 

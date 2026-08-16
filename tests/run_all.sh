@@ -14,12 +14,17 @@ for t in tests/test_*.gd; do
   # 土台は単体で走らせない
   [ "$t" = "tests/test_helper.gd" ] && continue
   echo "--- $t"
-  if ! "$GODOT" --headless --script "$t" 2>&1 | grep -v "^Godot Engine"; then
+  out=$("$GODOT" --headless --script "$t" 2>&1)
+  status=$?
+  echo "$out" | grep -v "^Godot Engine"
+  # godot はテストの結果を終了コードで返す
+  if [ "$status" -ne 0 ]; then
     failed=1
   fi
-  # godot はテストの結果を終了コードで返す
-  status=${PIPESTATUS[0]}
-  if [ "$status" -ne 0 ]; then
+  # 演出が解放されたノードを触って落ちても、ヘッドレスは走り続けてしまう。
+  # 印は stderr にしか出ないので、ここで拾って失敗にする。
+  if echo "$out" | grep -q "SCRIPT ERROR"; then
+    echo "  失敗 スクリプトのエラーが出ている（上を見ること）"
     failed=1
   fi
   echo ""
