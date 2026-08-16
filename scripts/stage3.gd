@@ -715,7 +715,9 @@ func _shoot(k: float) -> void:
 			await _cut_tail(during_emerge)
 		else:
 			## 頭と節は硬い。弾かれるだけ。
-			await _bounce_off(struck)
+			## 印が消えるまで待たない。待つと 1.5 秒動けなくなり、
+			## その間に毒を避けられなくなってしまう。
+			_bounce_off(struck)
 
 	## _busy はこちらが立てたときだけ下ろす。
 	## 登場演出も同じ旗を使っているので、横取りして下ろすと
@@ -759,13 +761,15 @@ func _bounce_off(s: KanjiSprite) -> void:
 	var mark := KanjiSprite.new()
 	mark.text = "硬"
 	mark.color = COL_HARD
-	mark.font_size = 20
+	## 読めるように大きめに出す。小さいと一瞬で消えて何か分からない。
+	mark.font_size = 32
 	mark.z_index = 10
 	add_child(mark)
 	mark.position = s.position
-	await Effects.pop_in(mark, 0.18)
-	await get_tree().create_timer(0.2).timeout
-	await Effects.fade_trail(mark, 0.25)
+	await Effects.pop_in(mark, 0.2)
+	## しばらく留めておく。ここが短いと、読む前に消えてしまう。
+	await get_tree().create_timer(0.9).timeout
+	await Effects.fade_trail(mark, 0.4)
 
 ## 蟲を倒した。頭が落ちて道が開く。
 func _defeat_worm() -> void:
