@@ -92,6 +92,7 @@ var _restart_hint: KanjiSprite
 var _shoot_was_down := false ## 前のコマでスペースが押されていたか
 var _charge := 0.0          ## 引き絞り具合（0=細い 〜 1=引き絞りきった）
 var _leaving := false       ## この場面を出ていく最中か（演出を止める合図）
+var _shooting := false      ## 射っている最中か（弓の位置は演出側が決める）
 var _worm_beaten := false   ## 蟲を倒したか（穴が目標に変わったか）
 
 ## 蟲の頭と、連なる節。節の最後が「尾」。
@@ -313,6 +314,10 @@ func _process(delta: float) -> void:
 		_spit_poison(delta)
 	_move_poisons(delta)
 
+	## 弓は演出中も勇者について回る。
+	## ここを止めると、蟲の登場演出の間だけ弓が取り残されて見える。
+	_follow_bow()
+
 	if _busy:
 		_shoot_was_down = shoot_down
 		return
@@ -504,6 +509,12 @@ func _try_take_bow() -> bool:
 		chest.text = "空箱"
 		Game.got_bow = true
 		bow.visible = true
+		## 取った瞬間に勇者の横へ置く。
+		## このあと蟲の登場演出で _busy になり、しばらく
+		## _follow_bow が働かないため、ここで位置を決めておく。
+		bow.position = hero.position + BOW_OFFSET
+		bow.scale = Vector2(BOW_THIN, 1.0)
+		bow.color = COL_BOW
 		## ここで蟲が穴から這い出てくる。
 		_emerge_worm()
 		return true
@@ -511,11 +522,15 @@ func _try_take_bow() -> bool:
 
 ## 弓は勇者の右上に構える。射っている最中は演出側が位置を決めるので触らない。
 func _follow_bow() -> void:
-	if Game.got_bow and not _busy:
-		bow.visible = true
-		bow.position = hero.position + BOW_OFFSET
-		## 太さは引き具合で決まるので、ここでは触らない
-		## （毎コマ 1.0 に戻すと、ためている最中に細く戻ってしまう）。
+	if not Game.got_bow:
+		return
+	bow.visible = true
+	## 位置はいつでも勇者について回る。
+	## 射っている間だけ止めると、矢が飛んでいるあいだに勇者が動いたとき
+	## 弓だけがその場に取り残されて見える。
+	bow.position = hero.position + BOW_OFFSET
+	## 太さは引き具合や放った反動で決まるので、ここでは触らない
+	## （毎コマ戻すと、ためている最中に細くなってしまう）。
 
 ## 押している間は引き絞り、離した瞬間に放つ。
 ## 引き絞りは演出を待たず毎フレーム進めるので、太くなっていく様子が見える。
@@ -558,6 +573,7 @@ func _show_bow_charge() -> void:
 ## 当たった相手によって起きることが変わるので、ここで振り分ける。
 func _shoot(k: float) -> void:
 	_busy = true
+	_shooting = true
 
 	## 尾・節・頭・的のどれに当たったかを見る。
 	var targets: Array = []
@@ -573,6 +589,7 @@ func _shoot(k: float) -> void:
 		_busy = false
 		return
 
+	_shooting = false
 	hero.can_move = true   ## 演出が済んだら動けるように戻す
 	if _is_tail(struck):
 		await _cut_tail()
