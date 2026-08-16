@@ -65,11 +65,11 @@ GitHub Pages へ自動デプロイします（`.github/workflows/deploy.yml`）�
 | `scripts/river.gd` | 川を 20px 刻みで並べる |
 | `scripts/effects.gd` | ステージ共通の演出部品（弾む拡大・破片・点滅・残像など） |
 | `scripts/touch_pad.gd` | スマホ・タブレット用の操作ボタン |
-| `scripts/main.gd` | ステージ 1 の進行と演出 |
+| `scripts/stage1.gd` | ステージ 1 の進行と演出 |
 | `scripts/stage2.gd` | ステージ 2 の進行と演出 |
 | `scripts/stage3.gd` | ステージ 3 の進行と演出 |
 | `scenes/title.tscn` | タイトル画面のシーン |
-| `scenes/main.tscn` | ステージ 1 のスプライトを配置したシーン |
+| `scenes/stage1.tscn` | ステージ 1 のスプライトを配置したシーン |
 | `scenes/stage2.tscn` | ステージ 2 のスプライトを配置したシーン |
 | `scenes/stage3.tscn` | ステージ 3 のスプライトを配置したシーン |
 

@@ -27,6 +27,13 @@ jobs:
       image: barichello/godot-ci:4.7.1
     steps:
       - uses: actions/checkout@v4
+      # フォントの取り込みと class_name の登録をここで済ませる。
+      # .godot/ は git に入れていないので、CI では空から作る必要がある。
+      # これをしないとフォントが読めず、KanjiSprite も見つからないまま
+      # テストが「0 件通った」で素通りしてしまう。
+      - name: 取り込みを済ませる
+        run: godot --headless --editor --quit 2>&1 | tail -5 || true
+
       - name: テストを走らせる
         run: |
           chmod +x tests/run_all.sh

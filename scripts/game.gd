@@ -8,7 +8,7 @@ const STAGE_H := 360.0
 ## ステージ番号 -> シーンファイルの対応表。
 ## ステージを増やすときはここに足すだけでよい（遷移する側は番号しか知らない）。
 const STAGE_SCENES := {
-	1: "res://scenes/main.tscn",
+	1: "res://scenes/stage1.tscn",
 	2: "res://scenes/stage2.tscn",
 	3: "res://scenes/stage3.tscn",
 }

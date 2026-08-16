@@ -4,7 +4,7 @@ extends "res://tests/test_helper.gd"
 func run_tests() -> void:
 	print("ステージ1「斧」")
 	var G := game()
-	var s := await load_scene("res://scenes/main.tscn")
+	var s := await load_scene("res://scenes/stage1.tscn")
 
 	check_eq(G.scene_no, 1, "シーン1 から始まる")
 	check(not G.got_axe, "斧はまだ持っていない")
