@@ -156,7 +156,6 @@ func start_scene2() -> void:
 	forest.set_scratch_pos(30, -158)
 
 	cut_mark.visible = false
-	## 位置は振ったときに斧の所へ置き直すので、ここでは仮置き。
 	cut_mark.set_scratch_pos(70, -130)
 
 	## 斧は「取った」ときだけ見えるようにする。
@@ -305,10 +304,10 @@ func _show_cut_mark() -> void:
 	_trail = false
 
 	## 命中の瞬間に「切」を表示する。
-	## 斧が当たっている所に出す。決まった場所に出すと、
-	## 振っている斧と切れた印が離れていて噛み合わない。
+	## 場所は決め打ち（勇者の右上）。斧の位置に出すと、
+	## 振り抜いた先まで印がついてきて落ち着かないため。
 	cut_mark.visible = true
-	cut_mark.position = axe.position
+	cut_mark.set_scratch_pos(70, -130)
 	## Scratch のコスチューム 1/2/3 は大きさ違い。回数に合わせて拡大する。
 	var s := 0.7 + 0.35 * float(Game.cut_count - 1)
 	cut_mark.scale = Vector2(s, s)
