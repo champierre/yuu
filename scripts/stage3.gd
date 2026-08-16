@@ -220,10 +220,14 @@ func _emerge_worm() -> void:
 				s.position = hole
 				_joints.append(s)
 				appeared += 1
-				_mark_tail()
+				## ここでは尾を決めない。
+				## 出るたびに末尾を「尾」にすると、1 本目から尾が見えてしまう。
+				## 全部出そろってから、いちばん後ろを尾にする。
 		_place_joints()
 		await get_tree().process_frame
 
+	## 出そろったので、最後の 1 つを尾にする。
+	_mark_tail()
 	_emerging_now = false
 	_busy = false
 
@@ -423,8 +427,9 @@ func _defeated() -> void:
 	await get_tree().create_timer(0.4).timeout
 	mark.queue_free()
 
-	## 持ち物はそのままに、場面だけ組み直す。
-	## 弓を拾い直させると、やられるたびに手間が増えて嫌になるため。
+	## 宝箱が閉じた、何も持っていない状態からやり直す。
+	## 蟲も引き金（弓を取ること）から出直しになる。
+	Game.got_bow = false
 	hero.modulate.a = 1.0
 	_shoot_was_down = false
 	_charge = 0.0
