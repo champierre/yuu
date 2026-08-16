@@ -15,8 +15,10 @@ const COL_BTN := Color("#555555")
 const COL_BTN_ON := Color("#bb3023")   ## 押している間
 const COL_DIVIDER := Color("#aaaaaa") ## 盤面とボタンの境目
 const COL_PAD_BG := Color("#f0efe9")  ## ボタンを置く帯の地色
-## ボタンを置く帯の高さ。指で押しやすいよう広めに取る。
-const PAD_HEIGHT := 220.0
+## ボタンを置く帯の高さ。
+## 十字の上下（62px 間隔 × 2）に、縁の余白を足した高さにしている。
+## 詰めると下のボタンが画面の縁に貼りついて押しにくい。
+const PAD_HEIGHT := 260.0
 
 ## 盤面の下に置く帯の高さ（project.godot のビューポートと合わせる）。
 const PAD_TOP := 360.0
@@ -24,11 +26,11 @@ const PAD_TOP := 360.0
 ## ボタン 1 つぶんの決まり。どの見た目で、どのキーとして扱うか。
 ## ボタンの並び。指で押すので、間隔も当たりも広めに取っている。
 const BUTTONS := [
-	{"text": "上", "action": "ui_up", "x": 112.0, "y": 50.0},
-	{"text": "左", "action": "ui_left", "x": 50.0, "y": 112.0},
-	{"text": "右", "action": "ui_right", "x": 174.0, "y": 112.0},
-	{"text": "下", "action": "ui_down", "x": 112.0, "y": 174.0},
-	{"text": "押", "action": "ui_accept", "x": 422.0, "y": 112.0},
+	{"text": "上", "action": "ui_up", "x": 112.0, "y": 68.0},
+	{"text": "左", "action": "ui_left", "x": 50.0, "y": 130.0},
+	{"text": "右", "action": "ui_right", "x": 174.0, "y": 130.0},
+	{"text": "下", "action": "ui_down", "x": 112.0, "y": 192.0},
+	{"text": "押", "action": "ui_accept", "x": 422.0, "y": 130.0},
 ]
 ## 指が当たったとみなす広さ。見た目より大きく取る。
 ## 隣のボタンと重ならない範囲で、できるだけ広くしてある。
