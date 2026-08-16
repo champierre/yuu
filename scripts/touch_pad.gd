@@ -13,6 +13,10 @@ class_name TouchPad
 const BTN_SIZE := 34
 const COL_BTN := Color("#555555")
 const COL_BTN_ON := Color("#bb3023")   ## 押している間
+const COL_DIVIDER := Color("#aaaaaa") ## 盤面とボタンの境目
+const COL_PAD_BG := Color("#f0efe9")  ## ボタンを置く帯の地色
+## ボタンを置く帯の高さ。
+const PAD_HEIGHT := 120.0
 
 ## 盤面の下に置く帯の高さ（project.godot のビューポートと合わせる）。
 const PAD_TOP := 360.0
@@ -51,6 +55,8 @@ func _ready() -> void:
 	_build()
 
 func _build() -> void:
+	_build_backdrop()
+	_build_divider()
 	for b in BUTTONS:
 		var s := KanjiSprite.new()
 		s.text = b["text"]
@@ -63,6 +69,30 @@ func _build() -> void:
 	## 「押」は他より大きくして、押しやすく目立たせる。
 	if _labels.has("ui_accept"):
 		_labels["ui_accept"].font_size = BTN_SIZE + 10
+
+## ボタンを置く帯に、薄い地色を敷く。
+## 盤面が白いので、うっすら色を変えるだけで「ここは別の場所」と分かる。
+func _build_backdrop() -> void:
+	var bg := ColorRect.new()
+	bg.color = COL_PAD_BG
+	bg.position = Vector2(0, PAD_TOP)
+	bg.size = Vector2(Game.STAGE_W, PAD_HEIGHT)
+	## 指の操作を邪魔しないようにする。
+	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	## 仕切りやボタンより後ろへ。
+	bg.z_index = -1
+	add_child(bg)
+
+## 盤面とボタンの境目に仕切りの線を引く。
+## ここから下は操作する所で、遊びの場ではないと分かるようにする。
+## ここは遊びの世界の外なので、漢字ではなく普通の線でよい。
+func _build_divider() -> void:
+	var line := ColorRect.new()
+	line.color = COL_DIVIDER
+	line.position = Vector2(0, PAD_TOP - 1.0)
+	line.size = Vector2(Game.STAGE_W, 2.0)
+	line.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(line)
 
 ## 指が触れた・離れた・滑ったのを見る。
 func _unhandled_input(event: InputEvent) -> void:
