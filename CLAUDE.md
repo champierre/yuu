@@ -274,13 +274,16 @@ godot --headless --export-release "Web" build/web/index.html
 ```sh
 git checkout -b 直すことの名前
 # 直す
-./tests/run_all.sh        # 出す前に手元で通す
 git push -u origin 直すことの名前
 gh pr create
 ```
 
-PR の間はテストが走らない（作業中は落ちて当たり前なので）。
-**手元で `./tests/run_all.sh` を通してから出すこと。**
+**PR を出すとテストが走る**（`deploy.yml` の `test`）。手元で毎回
+`./tests/run_all.sh` を通さなくてよい。手元で走らせるのは、直している
+最中に手早く確かめたいときだけでよい。
+
+書き出しと公開が動くのは `main` に入ったときだけ。PR では走らない
+（`build` と `deploy` に `if: github.event_name != 'pull_request'` がある）。
 
 ## デプロイ
 
