@@ -1,8 +1,11 @@
 name: Deploy to GitHub Pages
 
 # main に push するたびに Web 版を書き出して公開する。
+# PR のときはテストだけを走らせる（書き出しと公開は main のときだけ）。
 on:
   push:
+    branches: [main]
+  pull_request:
     branches: [main]
   workflow_dispatch:
 
@@ -12,8 +15,10 @@ permissions:
   id-token: write
 
 # 同時実行を1つに絞る（古いデプロイが新しいものを上書きしないように）。
+# group を枝ごとに分ける。ここを "pages" 固定にすると、
+# PR のテストと main の公開が互いを打ち切ってしまう。
 concurrency:
-  group: pages
+  group: pages-${{ github.ref }}
   cancel-in-progress: true
 
 env:
@@ -39,8 +44,11 @@ jobs:
           chmod +x tests/run_all.sh
           ./tests/run_all.sh
 
+  # 書き出しと公開は main に入ったときだけ。
+  # PR で公開まで走ると、まだ取り込んでいないものが表に出てしまう。
   build:
     needs: test
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     container:
       image: barichello/godot-ci:4.7.1
@@ -64,6 +72,7 @@ jobs:
 
   deploy:
     needs: build
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     environment:
       name: github-pages
