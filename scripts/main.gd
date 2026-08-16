@@ -6,6 +6,7 @@ const COL_TREE := Color("#9e6a3f")   ## 木・木木木・倒木
 const COL_CHEST := Color("#bb3023")  ## 宝箱
 const COL_AXE := Color("#a7a7a7")    ## 斧
 const COL_CUT := Color("#ff7729")    ## 切
+const COL_SCAR := Color("#6b4423")   ## 木に残る切り跡
 const COL_SOIL := Color("#6a302a")   ## 土
 const COL_GOAL := Color("#000000")   ## 目標
 const COL_DONE := Color("#3f9e44")   ## 達成
@@ -53,6 +54,7 @@ var _finished := false      ## クリア後は完全に停止する
 var _can_restart := false   ## クリア後、やり直しを受け付けるか
 var _can_advance := false   ## クリア後、次のステージへ進むのを受け付けるか
 var _leaving := false       ## この場面を出ていく最中か（演出を止める合図）
+var _scars: Array = []      ## 木に刻んだ切り跡
 var _restart_hint: KanjiSprite  ## 「もう一度」の案内
 
 func _ready() -> void:
@@ -121,11 +123,19 @@ func start_scene1() -> void:
 # ---------------------------------------------------------------- シーン 2
 
 ## start1_2: シネマモード。宝箱から斧を取り、木木木 を 3 回切って倒す。
+## 木に刻んだ切り跡を消す。
+func _clear_scars() -> void:
+	for sc in _scars:
+		if is_instance_valid(sc):
+			sc.queue_free()
+	_scars.clear()
+
 func start_scene2() -> void:
 	Game.scene_no = 2
 	Game.cinema_mode = true
 	Game.cut_count = 0
 	_busy = false
+	_clear_scars()
 
 	tree_sprite.visible = false
 	goal.visible = false
@@ -303,10 +313,30 @@ func _show_cut_mark() -> void:
 	await get_tree().create_timer(0.6).timeout
 	cut_mark.visible = false
 
+	## 切った跡を木に残す。切るほど傷が増えて、倒れる手前だと分かる。
+	_add_scar()
+
 	if Game.cut_count > 2:
 		await _fell_tree()
 	else:
 		_busy = false
+
+## 木に切り跡を刻む。切った回数ぶん、傷が深く大きくなっていく。
+func _add_scar() -> void:
+	var scar := KanjiSprite.new()
+	scar.text = "傷"
+	scar.color = COL_SCAR
+	## 回数を重ねるほど大きく、濃くする。
+	scar.font_size = 14 + Game.cut_count * 4
+	scar.z_index = 5
+	forest.add_child(scar)
+	## 木の高さの、切った回数に応じた所へ刻む。
+	## 下から順に刻んでいくので、傷が積み上がって見える。
+	var y := -150.0 + float(Game.cut_count - 1) * 14.0
+	scar.position = Vector2(randf_range(-6.0, 6.0), y - forest.position.y)
+	## 出るときに一瞬弾ませて、刻まれた感じを出す。
+	Effects.pop_in(scar, 0.25)
+	_scars.append(scar)
 
 ## 斧を x1 から x2 まで水平に動かす。ease で緩急を変える。
 func _swing_axe(x1: float, x2: float, dur: float, ease_type: int) -> void:
