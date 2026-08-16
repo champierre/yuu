@@ -114,9 +114,8 @@ func start_scene1() -> void:
 	hero.scale = Vector2.ONE
 	hero.set_scratch_pos(0, -120)
 	hero.can_move = true
-	## 壁と門にぶつかる。hero.gd は「川」として渡された群れを見るので、
-	## ここでは壁と門をまとめて渡している。
-	hero.river = wall_root
+	## 壁と門にぶつかる。ぶつかるものを集めた入れ物を渡す。
+	hero.blockers = wall_root
 
 	chest.visible = true
 	chest.set_scratch_pos(200, 50)

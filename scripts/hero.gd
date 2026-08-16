@@ -1,10 +1,13 @@
 extends KanjiSprite
-## 勇者「勇」。矢印キーで 1 フレームあたり 5px 移動し、川に触れたら押し戻す。
+## 勇者「勇」。矢印キーで 1 フレームあたり 5px 移動し、
+## ぶつかるものに触れたら押し戻す。
 
 const SPEED := 5.0
 
-## 川のスプライト群を持つノード（衝突判定の相手）。
-var river: Node = null
+## ぶつかって通れないものを集めたノード。
+## その子ども全部が相手になる（ステージ1 は川、ステージ2 は壁と門）。
+## 何も渡さなければ、ぶつかるものは無い。
+var blockers: Node = null
 
 ## シネマモードで x>230 に到達したときに発火する（start1 に相当）。
 signal reached_right_edge
@@ -32,49 +35,49 @@ func _limit_x() -> float:
 func _limit_y() -> float:
 	return Game.STAGE_H * 0.5 - rect().size.y * 0.5
 
-## シネマモードでない通常の移動。画面の四辺と川で止まる。
+## シネマモードでない通常の移動。画面の四辺とぶつかるもので止まる。
 func _move_normal() -> void:
 	if Input.is_action_pressed("ui_right"):
 		facing = Vector2.RIGHT
 		position.x += SPEED
-		if _touching_river() or scratch_pos().x > _limit_x():
+		if _touching_blocker() or scratch_pos().x > _limit_x():
 			position.x -= SPEED
 	if Input.is_action_pressed("ui_left"):
 		facing = Vector2.LEFT
 		position.x -= SPEED
-		if _touching_river() or scratch_pos().x < -_limit_x():
+		if _touching_blocker() or scratch_pos().x < -_limit_x():
 			position.x += SPEED
 	## 上下も画面の外へ出ないように止める（+y が上）。
 	if Input.is_action_pressed("ui_down"):
 		facing = Vector2.DOWN
 		position.y += SPEED
-		if _touching_river() or scratch_pos().y < -_limit_y():
+		if _touching_blocker() or scratch_pos().y < -_limit_y():
 			position.y -= SPEED
 	if Input.is_action_pressed("ui_up"):
 		facing = Vector2.UP
 		position.y -= SPEED
-		if _touching_river() or scratch_pos().y > _limit_y():
+		if _touching_blocker() or scratch_pos().y > _limit_y():
 			position.y += SPEED
 
 ## シネマモード中は左右のみ。右端を越えると次のシーンへ。
 func _move_cinema() -> void:
 	if Input.is_action_pressed("ui_right"):
 		position.x += SPEED
-		if _touching_river():
+		if _touching_blocker():
 			position.x -= SPEED
 	if Input.is_action_pressed("ui_left"):
 		position.x -= SPEED
 		## 左端では画面外に出ないように止める。
-		if _touching_river() or scratch_pos().x < -_limit_x():
+		if _touching_blocker() or scratch_pos().x < -_limit_x():
 			position.x += SPEED
 	## 右端まで歩いたら次の場面へ（ここは止めずに通す）。
 	if scratch_pos().x > 230.0:
 		reached_right_edge.emit()
 
-func _touching_river() -> bool:
-	if river == null:
+func _touching_blocker() -> bool:
+	if blockers == null:
 		return false
-	for part in river.get_children():
+	for part in blockers.get_children():
 		if part is KanjiSprite and touching(part):
 			return true
 	return false

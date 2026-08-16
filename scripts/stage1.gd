@@ -72,7 +72,7 @@ var _restart_hint: KanjiSprite  ## 「もう一度」の案内
 
 func _ready() -> void:
 	Game.reset()   ## 起動時だけ全変数を初期化する（斧を含む）
-	hero.river = river
+	hero.blockers = river
 	## シネマモード中に右端 (x>230) まで歩くとシーン 1 に戻る。
 	hero.reached_right_edge.connect(_on_hero_reached_right_edge)
 	_setup_colors()
