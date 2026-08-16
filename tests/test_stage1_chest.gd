@@ -5,7 +5,7 @@ extends "res://tests/test_helper.gd"
 func run_tests() -> void:
 	print("ステージ1 の宝箱")
 	var G := game()
-	var s := await load_scene("res://scenes/main.tscn")
+	var s := await load_scene("res://scenes/stage1.tscn")
 
 	## 1. ボタンを押さずに宝箱へ重なる → 開かない
 	s.hero.position = s.chest.position
@@ -50,7 +50,7 @@ func run_tests() -> void:
 	## 6. 起動の待ち（1 秒）が明けた直後でも、1 回目の押下で開くこと。
 	##    待っている間もキーの見張りは動いているので、
 	##    そこで押しっぱなしと記録されると 1 回目が無視されてしまう。
-	change_scene_to_file("res://scenes/main.tscn")
+	change_scene_to_file("res://scenes/stage1.tscn")
 	await wait_ms(300)          ## まだ起動の待ちの最中
 	var s2 := current_scene
 	var G2 := game()

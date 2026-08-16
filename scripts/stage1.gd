@@ -568,7 +568,7 @@ func _restart() -> void:
 	Game.reset()
 	## reload_current_scene() は current_scene が未設定だと失敗するので、
 	## 本編のシーンを名指しで読み直す。
-	get_tree().change_scene_to_file("res://scenes/main.tscn")
+	get_tree().change_scene_to_file("res://scenes/stage1.tscn")
 
 ## 次のステージへ進む。持ち物はここで捨てられる（reset_stage）。
 func _advance_stage() -> void:
