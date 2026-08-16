@@ -313,33 +313,51 @@ func _show_cut_mark() -> void:
 	await _swing_axe(SWING_HIT_X, AXE_OFFSET.x, SWING_RETURN_TIME, EASE_OUT)
 	_swinging = false
 
-	await get_tree().create_timer(0.6).timeout
-	cut_mark.visible = false
+	await get_tree().create_timer(0.35).timeout
 
-	## 切った跡を木に残す。切るほど傷が増えて、倒れる手前だと分かる。
-	_add_scar()
+	## 「切」が木へ吸い込まれて、そのまま切り込みとして残る。
+	await _drive_cut_into_tree()
 
 	if Game.cut_count > 2:
 		await _fell_tree()
 	else:
 		_busy = false
 
-## 木に切り跡を刻む。切った回数ぶん、傷が深く大きくなっていく。
-func _add_scar() -> void:
+## 出ていた「切」が木へ吸い込まれ、そのまま切り込みとして残る。
+## 別の字を新しく出すのではなく、振った結果の「切」がそのまま
+## 傷になることで、切った跡だと分かるようにしている。
+func _drive_cut_into_tree() -> void:
+	## 刻む場所。切った回数ぶん、下から順に積み上がる。
+	var y := -150.0 + float(Game.cut_count - 1) * 14.0
+	var target := Game.to_godot(randf_range(-6.0, 6.0), y)
+
+	var from := cut_mark.position
+	var from_scale: float = cut_mark.scale.x
+	var t := 0.0
+	var dur := 0.25
+	while t < dur:
+		t += get_process_delta_time()
+		var k: float = clampf(t / dur, 0.0, 1.0)
+		## 勢いよく木へ食い込む。
+		var e := Effects.ease_k(k, EASE_IN)
+		cut_mark.position = from.lerp(target, e)
+		## 食い込むにつれて小さく、深い傷になる。
+		cut_mark.scale = Vector2.ONE * lerpf(from_scale, 0.55, e)
+		await get_tree().process_frame
+
+	## 木に残す。木の子にするので、倒れるときは一緒に傾く。
 	var scar := KanjiSprite.new()
-	scar.text = "傷"
+	scar.text = "切"
 	scar.color = COL_SCAR
-	## 回数を重ねるほど大きく、濃くする。
-	scar.font_size = 14 + Game.cut_count * 4
+	scar.font_size = 16 + Game.cut_count * 3
 	scar.z_index = 5
 	forest.add_child(scar)
-	## 木の高さの、切った回数に応じた所へ刻む。
-	## 下から順に刻んでいくので、傷が積み上がって見える。
-	var y := -150.0 + float(Game.cut_count - 1) * 14.0
-	scar.position = Vector2(randf_range(-6.0, 6.0), y - forest.position.y)
-	## 出るときに一瞬弾ませて、刻まれた感じを出す。
-	Effects.pop_in(scar, 0.25)
+	scar.position = target - forest.position
 	_scars.append(scar)
+
+	## 元の「切」は役目を終えたので隠す。
+	cut_mark.visible = false
+	cut_mark.scale = Vector2.ONE
 
 ## 斧を x1 から x2 まで水平に動かす。ease で緩急を変える。
 func _swing_axe(x1: float, x2: float, dur: float, ease_type: int) -> void:
