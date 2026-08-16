@@ -52,6 +52,8 @@ const ARROW_LIFE := 2.0
 const ARROW_MUZZLE_DIST := 18.0
 ## 矢の当たる広さ。蟲は動くので、矩形が触れるかだけでは狙いが厳しすぎる。
 const ARROW_REACH := 22.0
+## 残像を置く間隔 (px)。これより近い所には重ねて置かない。
+const TRAIL_GAP := 12.0
 
 ## 蟲の節の数（頭を除く）。最後の 1 つが弱点の「尾」。
 const JOINT_COUNT := 7
@@ -518,11 +520,15 @@ func _update_charge(delta: float) -> void:
 	if down:
 		## 押している間、少しずつ満ちていく。
 		_charge = minf(_charge + delta / CHARGE_TIME, 1.0)
+		## 引き絞っている間は足を止める。
+		## 狙いを定める動作なので、歩きながら撃てると緊張感が無くなる。
+		hero.can_move = false
 	elif _shoot_was_down:
 		## 離した瞬間に放つ。ためた分だけ速く飛ぶ。
 		var k := _charge
 		_charge = 0.0
 		_shoot_was_down = false
+		hero.can_move = true   ## 放ったので、また動ける
 		_shoot(k)
 		return
 
@@ -562,6 +568,7 @@ func _shoot(k: float) -> void:
 		_busy = false
 		return
 
+	hero.can_move = true   ## 演出が済んだら動けるように戻す
 	if _is_tail(struck):
 		await _cut_tail()
 	else:
@@ -680,6 +687,8 @@ func _fly_arrow(targets: Array, dir: Vector2 = Vector2.UP, k: float = 1.0):
 	var fall := 0.0
 
 	var t := 0.0
+	## 残像を置いた場所。近すぎる所には重ねて置かない。
+	var last_trail := a.position
 	while t < ARROW_LIFE:
 		if _leaving or not is_instance_valid(a):
 			if is_instance_valid(a):
@@ -690,14 +699,19 @@ func _fly_arrow(targets: Array, dir: Vector2 = Vector2.UP, k: float = 1.0):
 		if start.distance_to(a.position) < range_max:
 			## まだ勢いがある。まっすぐ飛ぶ。
 			a.position += dir * speed * d
+			## 軌跡は飛んでいる間だけ、しかも一定の間隔を空けて置く。
+			## 毎コマ置くと、遅い矢ほど同じ場所に濃く積み重なり、
+			## 消えるまでいつまでも残って見えてしまう。
+			if last_trail.distance_to(a.position) >= TRAIL_GAP:
+				last_trail = a.position
+				Effects.leave_trail(self, a)
 		else:
-			## 力尽きた。あとは落ちるだけ。
+			## 力尽きた。あとは落ちるだけ。残像はもう置かない。
 			fall += 900.0 * d
 			a.position.y += fall * d
 			a.modulate.a = maxf(a.modulate.a - d * 2.0, 0.0)
 			if a.modulate.a <= 0.0:
 				break
-		Effects.leave_trail(self, a)   ## 速いので、軌跡が一本の線に見える
 
 		for obj in targets:
 			if obj == null or not is_instance_valid(obj) or not obj.visible:
