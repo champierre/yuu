@@ -13,7 +13,9 @@ extends StageBase
 ## 失うことで手に入る、という筋がそのまま字の形になっている。
 
 const COL_WALL := Color("#7a6a55")     ## 壁
-const COL_GATE := Color("#66421f")     ## 門
+## 門。壁と同じ茶系にすると並んだときに見分けがつかないので、
+## 別系統の青緑にしている（「あとで通れるようになる場所」を目立たせる）。
+const COL_GATE := Color("#2f8f8f")     ## 門
 const COL_GOLD := Color("#e0b020")     ## 金
 const COL_LOST := Color("#8a8a8a")     ## 失
 const COL_IRON := Color("#5a7a8a")     ## 鉄
@@ -243,6 +245,11 @@ func _step_wander(s: KanjiSprite, is_thief: bool) -> void:
 ## 宝箱を開ける。中身は持ち物の状態で変わる。
 func _try_chest() -> void:
 	if not chest.visible or hero.position.distance_to(chest.position) > TALK_REACH + 12.0:
+		return
+	## 鉄にしたあとは空箱。もう何も出てこない。
+	## ここで止めないと、金を盗まれた時点で got_gold が下りているせいで
+	## 「まだ金を取っていない」と見なされ、持ち物の鉄が金に戻ってしまう。
+	if Game.got_iron:
 		return
 	if Game.lost_gold:
 		## 金を失ったあとに開けると、「金」と「失」が合わさって「鉄」になる。
