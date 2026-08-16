@@ -5,8 +5,9 @@
 
 **▶ [ブラウザで遊ぶ](https://champierre.github.io/yuu/)**
 
-Scratch 版 [169268428](https://scratch.mit.edu/projects/169268428/)（作者: jishiha）を
-Godot 4 に移植したものです。
+Scratch 版 [「勇」の冒険](https://scratch.mit.edu/projects/169268428/) と
+[その 2](https://scratch.mit.edu/projects/427402420/)（作者: jishiha）を
+Godot 4 に移植し、ステージを足したものです。
 
 ## 遊び方
 
@@ -47,51 +48,24 @@ GitHub Pages へ自動デプロイします（`.github/workflows/deploy.yml`）�
 | `scripts/kanji_sprite.gd` | 漢字1体＝スプライト。表示・当たり判定・縦書き・回転中心 |
 | `scripts/title.gd` | タイトル画面 |
 | `scripts/hero.gd` | 勇者の移動と川の衝突判定 |
-| `scripts/river.gd` | 川を 20px 刻みで並べる（ステージ 1 のシーン3では中央を空ける） |
+| `scripts/river.gd` | 川を 20px 刻みで並べる |
 | `scripts/effects.gd` | ステージ共通の演出部品（弾む拡大・破片・点滅・残像など） |
-| `scripts/main.gd` | ステージ 1 の進行と演出（Scratch のメッセージに対応） |
+| `scripts/touch_pad.gd` | スマホ・タブレット用の操作ボタン |
+| `scripts/main.gd` | ステージ 1 の進行と演出 |
 | `scripts/stage2.gd` | ステージ 2 の進行と演出 |
+| `scripts/stage3.gd` | ステージ 3 の進行と演出 |
 | `scenes/title.tscn` | タイトル画面のシーン |
 | `scenes/main.tscn` | ステージ 1 のスプライトを配置したシーン |
 | `scenes/stage2.tscn` | ステージ 2 のスプライトを配置したシーン |
+| `scenes/stage3.tscn` | ステージ 3 のスプライトを配置したシーン |
 
-## 移植のメモ
-
-（作りの話です。解き方には触れていませんが、
-　中身を知りたくない場合は読み飛ばしてください。）
-
-- Scratch の座標系（中心原点・上が +Y）は `Game.to_godot()` で変換している。
-- スプライトの絵は SVG ではなくフォント描画で再現し、色は元のコスチュームの
-  塗り色をそのまま使用（川 `#003cff`、木 `#9e6a3f`、宝箱 `#bb3023` など）。
-- 「木木木」は縦長コスチュームなので縦書き＋回転中心を根元に置き、
-  根元を軸に倒れるようにしている。
-- 元の `broadcast and wait` による 1 秒待ちは `_busy` フラグで再現している。
-- 斧を振る動作は、振りかぶり→振り抜き→食い込み→引き戻しの 4 段階。
-  右から左へ水平に薙ぐ動きで、等速ではなく緩急をつけている
-  （タメは減速し、振り抜きは静止から一気に加速する）。`SWING_*` 定数で調整可能。
-  斧は速く動くほど「斧」の字が横に伸びて縦に潰れ、寝かせたように歪む
-  （`AXE_STRETCH` / `AXE_SQUASH` / `AXE_MAX_SPEED` で調整）。
-  振り抜き中は同じ歪みの残像を置いて水平の軌跡を強調している。
-- 矢は回転させず、飛ぶ向きに合わせて縦書き／横書きを切り替えている。
-  `KanjiSprite` の当たり判定は回転を考えない（矩形のまま）ため、
-  傾けると見た目と判定がずれてしまう。
-  斧を傾けずに水平に薙いでいるのと同じ理由。
-- 矢は弓ではなく勇者の位置から出す。弓は構えの分だけ右にずれているので、
-  そこを起点にすると狙った先から外れてしまう。
-- 蟲の節は、頭の通った道を**一定の距離ごと**に刻んで並べている。
-  コマ数で刻むと、頭の速さによって節の間隔が伸び縮みしてしまう。
-- 蟲の蛇行は控えめにしてある。後ろの節ほど遅れて動くぶん大きく振れるので、
-  振り幅を欲張ると勇者（5px/コマ）では追いつけず、狙えなくなる。
-- ステージごとに `.tscn` と `.gd` を分けている。1 つのシーンに全部のステージの
-  スプライトを置くと、場面を組むたびに「使わないものを隠す」記述が増え、
-  書き漏らしがそのまま不具合になるため。
-
-開発時の注意点は [CLAUDE.md](CLAUDE.md) にまとめている。
+開発時に気をつけることは [CLAUDE.md](CLAUDE.md) にまとめています。
 
 ## ライセンス
 
 - ソースコード: 著作権は作者が保有します（All rights reserved）。
 - 同梱フォント `fonts/NotoSansJP-Regular.otf`:
   SIL Open Font License 1.1（[fonts/OFL.txt](fonts/OFL.txt)）
-- 原作: [漢字謎解きアクション「勇」の冒険](https://scratch.mit.edu/projects/169268428/) by jishiha
+- 原作: [漢字謎解きアクション「勇」の冒険](https://scratch.mit.edu/projects/169268428/) /
+  [その 2](https://scratch.mit.edu/projects/427402420/) by jishiha
   （原作者本人による移植です）
