@@ -300,6 +300,13 @@ func _process(delta: float) -> void:
 	if not _emerging_now:
 		_move_worm(delta)
 
+	## 毒も演出中に動かし続ける。
+	## 蟲と同じで、矢が飛んでいる間だけ止まると固まって見えてしまう。
+	## 吐くのは登場が済んでからにする（出てくる途中に吐かれると理不尽なため）。
+	if _worm_head != null and not _emerging_now:
+		_spit_poison(delta)
+	_move_poisons(delta)
+
 	if _busy:
 		_shoot_was_down = shoot_down
 		return
@@ -311,11 +318,6 @@ func _process(delta: float) -> void:
 	if just_took:
 		_shoot_was_down = true
 		return
-
-	## 蟲は毒を吐く。飛んでいる毒も動かす。
-	if _worm_head != null:
-		_spit_poison(delta)
-	_move_poisons(delta)
 
 	## 蟲に触れたらやられる。やり直し。
 	## 弓の処理より先に見る。あとに置くと、弓を持っている間は
