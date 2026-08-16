@@ -130,12 +130,24 @@ func _process(_delta: float) -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if _started:
 		return
-	if event is InputEventMouseButton and event.pressed:
+	## 決定で始める。操作ボタンの「押」もこれとして届く。
+	if event.is_action_pressed("ui_accept"):
 		_start()
-	elif event is InputEventKey and event.pressed and not event.echo:
-		if event.keycode == KEY_SPACE or event.keycode == KEY_ENTER \
-				or event.keycode == KEY_KP_ENTER:
+		return
+	## 盤面のどこかを触っても始める。
+	## 操作ボタンの帯（盤面より下）は除く。そこを触るのは
+	## ステージを選ぶためで、始めたいわけではない。
+	if event is InputEventMouseButton and event.pressed:
+		if not _on_pad(event.position):
 			_start()
+	elif event is InputEventScreenTouch and event.pressed:
+		if not _on_pad(event.position):
+			_start()
+
+## その場所が操作ボタンの帯の中か。
+## 帯は盤面 (480x360) より下にある。
+func _on_pad(pos: Vector2) -> bool:
+	return pos.y >= Game.STAGE_H
 
 ## 本編へ移る。
 func _start() -> void:

@@ -120,7 +120,9 @@ func _build_divider() -> void:
 	add_child(line)
 
 ## 指が触れた・離れた・滑ったのを見る。
-func _unhandled_input(event: InputEvent) -> void:
+## _unhandled_input ではなく _input を使う。
+## 場面側が先に受け取ってしまうと、ボタンまで届かないため。
+func _input(event: InputEvent) -> void:
 	if event is InputEventScreenTouch:
 		if event.pressed:
 			_press_at(event.position, event.index)
@@ -140,8 +142,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		_release(-1)
 		_press_at(event.position, -1)
 
-## その場所にあるボタンを押す。
-func _press_at(pos: Vector2, finger: int) -> void:
+## その場所にあるボタンを押す。押せたら true。
+func _press_at(pos: Vector2, finger: int) -> bool:
 	for b in BUTTONS:
 		var center := Vector2(b["x"], PAD_TOP + b["y"])
 		## 見た目より広めに取る。指は正確に当たらないため。
@@ -153,21 +155,23 @@ func _press_at(pos: Vector2, finger: int) -> void:
 		_send(b["action"], true)
 		if _labels.has(b["action"]):
 			_labels[b["action"]].color = COL_BTN_ON
-		return
+		return true
+	return false
 
-## 離した指のぶんだけ、押すのをやめる。
-func _release(finger: int) -> void:
+## 離した指のぶんだけ、押すのをやめる。離すものがあれば true。
+func _release(finger: int) -> bool:
 	if not _pressed.has(finger):
-		return
+		return false
 	var action: String = _pressed[finger]
 	_pressed.erase(finger)
 	## 同じボタンを別の指がまだ押しているなら、離さない。
 	for a in _pressed.values():
 		if a == action:
-			return
+			return true
 	_send(action, false)
 	if _labels.has(action):
 		_labels[action].color = COL_BTN
+	return true
 
 ## キーが押された（離された）ことにして、ゲーム側へ流す。
 ## こうしておくと、ゲーム側はキーボードと同じ書き方のままでよい。
