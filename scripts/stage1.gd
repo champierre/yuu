@@ -276,7 +276,16 @@ func _process(_delta: float) -> void:
 	## そこで拾ってしまうと、その 1 回が使われないまま消え、
 	## 遊ぶ人には「1 回目が効かなかった」と見える。
 	var act_down := Input.is_action_pressed("ui_accept")
-	if _finished or _busy:
+	if _finished:
+		## クリアしたあとも、画面のボタンからの押下だけは見ておく。
+		## _unhandled_input は入力があったときしか呼ばれず、
+		## パッドが送る合図では呼ばれないことがあるため。
+		if TouchPad.take_just_pressed("ui_accept"):
+			_confirm()
+		_act_was_down = act_down
+		_act_just_pressed = false
+		return
+	if _busy:
 		## 押しっぱなしのまま演出が明けたときに、
 		## それを新しい押下と取り違えないよう、状態だけは覚えておく。
 		_act_was_down = act_down
@@ -284,6 +293,9 @@ func _process(_delta: float) -> void:
 		return
 	_act_just_pressed = act_down and not _act_was_down
 	_act_was_down = act_down
+	## 画面のボタンから押されたぶんも拾う。
+	if TouchPad.take_just_pressed("ui_accept"):
+		_act_just_pressed = true
 	match Game.scene_no:
 		1: _process_scene1()
 		2: _process_scene2()
@@ -598,9 +610,12 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if not _can_restart and not _can_advance:
 		return
+	## 画面を触って進められるのは、指で遊ぶ機械ではないときだけ。
+	## 指で遊ぶ機械では、すべて画面のボタンで操作する。
+	## 触っただけで進むと、意図しない所で先へ行ってしまう。
 	if event is InputEventMouseButton and event.pressed:
-		_confirm()
-	elif event is InputEventKey and event.pressed and not event.echo:
-		if event.keycode == KEY_SPACE or event.keycode == KEY_ENTER \
-				or event.keycode == KEY_KP_ENTER:
+		if not TouchPad.needed():
 			_confirm()
+	elif event.is_action_pressed("ui_accept"):
+		_confirm()
+

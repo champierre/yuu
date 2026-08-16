@@ -192,6 +192,11 @@ func _build_villagers() -> void:
 
 func _process(delta: float) -> void:
 	if _finished:
+		## クリアしたあとも、画面のボタンからの押下だけは見ておく。
+		## _unhandled_input は入力があったときしか呼ばれず、
+		## パッドが送る合図では呼ばれないことがあるため。
+		if TouchPad.take_just_pressed("ui_accept"):
+			_confirm()
 		return
 	_fade_talk(delta)
 	if _busy:
@@ -222,6 +227,11 @@ func _act_pressed() -> bool:
 	var down := Input.is_action_pressed("ui_accept")
 	var just := down and not _act_was_down
 	_act_was_down = down
+	## 画面のボタンから押されたぶんも拾う。
+	## パッドが送る合図は次のコマまで届かないので、
+	## それだけを見ていると 1 回目の押下を取りこぼす。
+	if TouchPad.take_just_pressed("ui_accept"):
+		just = true
 	return just
 
 ## 村人と盗人が街をうろつく。
@@ -639,9 +649,12 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if not _can_restart:
 		return
+	## 画面を触って進められるのは、指で遊ぶ機械ではないときだけ。
+	## 指で遊ぶ機械では、すべて画面のボタンで操作する。
+	## 触っただけで進むと、意図しない所で先へ行ってしまう。
 	if event is InputEventMouseButton and event.pressed:
-		_confirm()
-	elif event is InputEventKey and event.pressed and not event.echo:
-		if event.keycode == KEY_SPACE or event.keycode == KEY_ENTER \
-				or event.keycode == KEY_KP_ENTER:
+		if not TouchPad.needed():
 			_confirm()
+	elif event.is_action_pressed("ui_accept"):
+		_confirm()
+

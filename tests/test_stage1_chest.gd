@@ -68,3 +68,25 @@ func run_tests() -> void:
 	key(KEY_SPACE, false)
 	await wait_ms(200)
 	check(G2.got_axe, "待ちが明けたあと 1 回目の押下で開く")
+
+	## 7. 画面のボタン（スマホ）でも 1 回目で開くこと。
+	##    キーボードでは開くのに、ボタンだと 2 回押さないと
+	##    開かない、ということが起きていた。
+	var s3 := await load_scene("res://scenes/stage1.tscn")
+	var G3 := game()
+	var pad = load("res://scripts/touch_pad.gd").new()
+	s3.add_child(pad)
+	await wait_ms(300)
+	s3.hero.position = s3.chest.position
+	await wait_ms(200)
+
+	var apos := Vector2.ZERO
+	for b in pad.BUTTONS:
+		if b["action"] == "ui_accept":
+			apos = Vector2(b["x"], pad.PAD_TOP + b["y"])
+	## 1 回だけ押して離す。
+	pad._press_at(apos, 0)
+	await wait_ms(200)
+	pad._release(0)
+	await wait_ms(200)
+	check(G3.got_axe, "画面のボタンでも 1 回目で宝箱が開く")

@@ -36,9 +36,20 @@ func run_tests() -> void:
 	await wait_ms(300)
 	check(not t._started, "操作ボタンの帯を触っても始まらない")
 
-	## 帯かどうかの見分けが正しいか（触った場所で判断している）。
-	check(t._on_pad(Vector2(112, 490)), "盤面より下は操作ボタンの帯")
-	check(not t._on_pad(Vector2(240, 180)), "盤面の中は帯ではない")
+	## 指で遊ぶ機械では、画面を触っただけでは始まらない。
+	## 「押」ボタンで始める（触って始まると、戻ってきた指で
+	## 勝手に始まってしまう）。
+	var ev3 := InputEventScreenTouch.new()
+	ev3.position = Vector2(240, 180)   ## 盤面のまんなか
+	ev3.pressed = true
+	ev3.index = 0
+	Input.parse_input_event(ev3)
+	await wait_ms(300)
+	if TouchPad.needed():
+		check(not t._started, "指で遊ぶ機械では、触っただけで始まらない")
+	else:
+		check(t._started, "パソコンでは、盤面を押すと始まる")
+		return   ## 始まってしまったので、ここで終わり
 
 	## 決定キーで始まる。
 	await press_accept()
