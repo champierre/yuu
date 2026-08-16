@@ -52,6 +52,7 @@ var _axe_prev_x := 0.0      ## 歪みの計算用。直前のフレームの斧�
 var _finished := false      ## クリア後は完全に停止する
 var _can_restart := false   ## クリア後、やり直しを受け付けるか
 var _can_advance := false   ## クリア後、次のステージへ進むのを受け付けるか
+var _leaving := false       ## この場面を出ていく最中か（演出を止める合図）
 var _restart_hint: KanjiSprite  ## 「もう一度」の案内
 
 func _ready() -> void:
@@ -356,10 +357,14 @@ func _finish() -> void:
 	await get_tree().create_timer(0.12).timeout
 
 	## 2. 目標が「達成」に変わり、勢いよく飛び出して弾む。
+	if _left():
+		return
 	goal.text = "達成"
 	goal.color = COL_DONE
 	goal.z_index = 10
 	await Effects.pop_in(goal, 0.45)
+	if _left():
+		return
 
 	## 3. 「達成」から漢字が四方に弾ける。
 	Effects.burst(self, goal.position)
@@ -378,6 +383,9 @@ func _finish() -> void:
 
 ## クリア後の「もう一度」案内。点滅させ、スペースかクリックで最初から始める。
 func _show_restart_hint() -> void:
+	## 途中でタイトルへ抜けていたら、もう何もしない。
+	if _left():
+		return
 	_restart_hint = KanjiSprite.new()
 	_restart_hint.text = "スペースキーでもう一度"
 	_restart_hint.color = COL_SUB
@@ -393,6 +401,9 @@ func _show_restart_hint() -> void:
 
 ## クリア後の「次のステージへ」案内。_show_restart_hint と同じ作りで文言だけ違う。
 func _show_next_stage_hint() -> void:
+	## 途中でタイトルへ抜けていたら、もう何もしない。
+	if _left():
+		return
 	_restart_hint = KanjiSprite.new()
 	_restart_hint.text = "スペースキーで次のステージへ"
 	_restart_hint.color = COL_SUB
@@ -438,6 +449,12 @@ func _unhandled_input(event: InputEvent) -> void:
 	## Esc はいつでもタイトルへ戻れる。
 	if event is InputEventKey and event.pressed and not event.echo \
 			and event.keycode == KEY_ESCAPE:
+		## 動いている演出を止めてから抜ける。
+		## 止めないと、解放されたノードを触りにいって固まる。
+		_leaving = true
+		_finished = true
+		_can_restart = false
+		_can_advance = false
 		Game.reset()
 		get_tree().change_scene_to_file("res://scenes/title.tscn")
 		return

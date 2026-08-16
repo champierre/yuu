@@ -16,6 +16,14 @@ const BURST_COLORS := [
 	Color("#e0b020"), Color("#3f9e44"), Color("#bb3023"), Color("#003cff"),
 ]
 
+## そのノードがまだ演出を続けてよい状態か。
+## シーンが切り替わると、ノードは解放される前にまず木から外される。
+## その間 is_instance_valid は true を返すのに get_tree() は使えないので、
+## 木の中にいることまで確かめないと落ちる。
+## 演出はどれも await をまたぐので、再開のたびにこれで確かめる。
+static func alive(node: Node) -> bool:
+	return node != null and is_instance_valid(node) and node.is_inside_tree()
+
 ## 0〜1 の進み具合に緩急をつける。
 ## EASE_IN は「静→急」（止まった状態から一気に加速する）、
 ## EASE_OUT は「急→静」（勢いよく出て、最後に減速して止まる）。
@@ -24,10 +32,12 @@ static func ease_k(k: float, ease_type: int) -> float:
 
 ## ゼロから勢いよく拡大し、行き過ぎてから戻る（弾む拡大）。
 static func pop_in(node: Node2D, dur: float) -> void:
+	if not alive(node):
+		return
 	node.scale = Vector2.ZERO
 	var t := 0.0
 	while t < dur:
-		if not is_instance_valid(node) or not node.is_inside_tree():
+		if not alive(node):
 			return
 		var tree := node.get_tree()
 		t += tree.root.get_process_delta_time()
@@ -37,7 +47,7 @@ static func pop_in(node: Node2D, dur: float) -> void:
 		var overshoot := sin(k * PI) * 0.45
 		node.scale = Vector2.ONE * (e + overshoot)
 		await tree.process_frame
-	if is_instance_valid(node):
+	if alive(node):
 		node.scale = Vector2.ONE
 
 ## 破片を飛ばして、減速しながら落として消す。
@@ -47,7 +57,7 @@ static func fly_particle(p: KanjiSprite, vel: Vector2) -> void:
 	var t := 0.0
 	while t < life:
 		## シーンが切り替わると解放されるので、毎回確かめる。
-		if not is_instance_valid(p) or not p.is_inside_tree():
+		if not alive(p):
 			return
 		var tree := p.get_tree()
 		var d := tree.root.get_process_delta_time()
@@ -64,6 +74,8 @@ static func fly_particle(p: KanjiSprite, vel: Vector2) -> void:
 ## origin を中心に漢字が放射状に飛び散る。
 ## parent に破片をぶら下げるので、シーンが変わればまとめて消える。
 static func burst(parent: Node2D, origin: Vector2) -> void:
+	if not alive(parent):
+		return
 	for i in BURST_CHARS.size():
 		var p := KanjiSprite.new()
 		p.text = BURST_CHARS[i]
@@ -77,24 +89,30 @@ static func burst(parent: Node2D, origin: Vector2) -> void:
 
 ## その場で跳ねて喜ぶ。
 static func cheer(node: Node2D, times: int = 2) -> void:
+	if not alive(node):
+		return
 	var base := node.position
 	for jump in times:
 		var dur := 0.34
 		var t := 0.0
 		while t < dur:
-			if not is_instance_valid(node) or not node.is_inside_tree():
+			if not alive(node):
 				return
-			t += node.get_process_delta_time()
+			var tree := node.get_tree()
+			t += tree.root.get_process_delta_time()
 			var k: float = clampf(t / dur, 0.0, 1.0)
 			## 放物線を描いて上がって下りる。
 			node.position.y = base.y - sin(k * PI) * 26.0
-			await node.get_tree().process_frame
-		if is_instance_valid(node):
-			node.position = base
+			await tree.process_frame
+		if not alive(node):
+			return
+		node.position = base
 
 ## 画面に大きな一文字を出す。
 static func show_banner(parent: Node2D, text: String, color: Color,
 		x: float = 0.0, y: float = 40.0) -> KanjiSprite:
+	if not alive(parent):
+		return null
 	var banner := KanjiSprite.new()
 	banner.text = text
 	banner.color = color
@@ -110,11 +128,11 @@ static func show_banner(parent: Node2D, text: String, color: Color,
 ## シーン切り替えで対象ごと解放されるため、毎回 is_instance_valid で確かめる。
 static func blink(node: KanjiSprite, should_continue: Callable) -> void:
 	var t := 0.0
-	while is_instance_valid(node) and node.is_inside_tree() and should_continue.call():
+	while alive(node) and should_continue.call():
 		t = fmod(t + node.get_process_delta_time(), 1.2)
 		node.modulate.a = 0.35 + 0.65 * (0.5 + 0.5 * sin(t * PI * 2.0 - PI * 0.5))
 		await node.get_tree().process_frame
-	if is_instance_valid(node):
+	if alive(node):
 		node.modulate.a = 1.0
 
 ## 残像を薄くしながら消す。
@@ -141,6 +159,8 @@ static func fade_trail(t: KanjiSprite, life: float = 0.18) -> void:
 
 ## 通った跡に、同じ形の文字を薄く置いてすぐ消す。動きの軌跡に見える。
 static func leave_trail(parent: Node2D, src: KanjiSprite, life: float = 0.18) -> void:
+	if not alive(parent) or not alive(src):
+		return
 	var t := KanjiSprite.new()
 	t.text = src.text
 	t.color = src.color
@@ -154,6 +174,8 @@ static func leave_trail(parent: Node2D, src: KanjiSprite, life: float = 0.18) ->
 ## 画面の左上に「Esc でタイトルへ」と小さく出す。
 ## どのステージでも同じ位置に出したいので、ここに置いている。
 static func show_escape_hint(parent: Node2D) -> KanjiSprite:
+	if not alive(parent):
+		return null
 	var h := KanjiSprite.new()
 	h.text = "Esc でタイトルに戻る"
 	h.color = Color("#999999")

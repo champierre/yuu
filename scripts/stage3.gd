@@ -922,14 +922,22 @@ func _finish() -> void:
 
 	await get_tree().create_timer(0.12).timeout
 
+	if _left():
+		return
 	goal.text = "達成"
 	goal.color = COL_DONE
 	goal.z_index = 10
 	await Effects.pop_in(goal, 0.45)
+	if _left():
+		return
 
 	Effects.burst(self, goal.position)
 	await Effects.cheer(hero)
+	if _left():
+		return
 	await Effects.show_banner(self, "祝", COL_DONE)
+	if _left():
+		return
 
 	if Game.stage_no < Game.STAGE_MAX:
 		_show_end_hint("スペースキーで次のステージへ")
@@ -937,6 +945,9 @@ func _finish() -> void:
 		_show_end_hint("スペースキーでもう一度")
 
 func _show_end_hint(text: String) -> void:
+	## 途中でタイトルへ抜けていたら、もう何もしない。
+	if _left():
+		return
 	_restart_hint = KanjiSprite.new()
 	_restart_hint.text = text
 	_restart_hint.color = COL_SUB
@@ -951,10 +962,17 @@ func _show_end_hint(text: String) -> void:
 	Effects.blink(_restart_hint, func(): return _can_restart)
 
 ## タイトル画面へ戻る。
+## この場面をもう離れたか。演出は await をまたぐので、
+## 続きを進める前にこれで確かめる。
+func _left() -> bool:
+	return _leaving or not is_inside_tree()
+
 func _to_title() -> void:
-	## 飛んでいる矢の演出を止める。
-	## 止めないと、解放されたあとも残像を作ろうとして落ちる。
+	## 動いている演出を止めてから抜ける。
+	## 矢もクリア演出も、止めないと解放されたノードを触りにいって固まる。
 	_leaving = true
+	_finished = true
+	_can_restart = false
 	Game.reset()
 	get_tree().change_scene_to_file("res://scenes/title.tscn")
 
