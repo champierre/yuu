@@ -125,7 +125,12 @@ static func fade_trail(t: KanjiSprite, life: float = 0.18) -> void:
 		## is_instance_valid だけでは足りない。木から外された直後は
 		## まだ「生きている」が get_tree() は使えないため、
 		## is_inside_tree() で中にいることまで確かめる。
-		if not is_instance_valid(t) or not t.is_inside_tree():
+		if not is_instance_valid(t):
+			return
+		if not t.is_inside_tree():
+			## 木から外された。ここで捨てないと、薄くなる途中の
+			## 残像がそのまま残り続けてしまう。
+			t.queue_free()
 			return
 		var tree := t.get_tree()
 		e += tree.root.get_process_delta_time()

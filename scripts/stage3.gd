@@ -102,6 +102,7 @@ var _shoot_was_down := false ## 前のコマでスペースが押されていた
 var _charge := 0.0          ## 引き絞り具合（0=細い 〜 1=引き絞りきった）
 var _leaving := false       ## この場面を出ていく最中か（演出を止める合図）
 var _shooting := false      ## 射っている最中か（弓の位置は演出側が決める）
+var _await_release := false ## 一度キーを離すまで引き絞りを始めない
 var _worm_beaten := false   ## 蟲を倒したか（穴が目標に変わったか）
 
 ## 蟲の頭と、連なる節。節の最後が「尾」。
@@ -344,14 +345,19 @@ func _process(delta: float) -> void:
 	_follow_bow()
 	if just_took:
 		_shoot_was_down = true
+		## 宝箱を開けたその押し下げが、そのまま引き絞りに化けないようにする。
+		## 一度離すまで構えを始めない。
+		_await_release = true
 		return
 
 	## 蟲に触れたらやられる。やり直し。
 	## 弓の処理より先に見る。あとに置くと、弓を持っている間は
 	## _update_charge で return してしまい、ここまで来ない。
-	if (_worm_head != null and _touched_by_worm()) or _touched_by_poison():
-		_defeated()
-		return
+	## 出てくる途中は当たらない。まだ避けようがないため。
+	if not _emerging_now:
+		if (_worm_head != null and _touched_by_worm()) or _touched_by_poison():
+			_defeated()
+			return
 
 	## 蟲を倒して穴が目標に変わったら、そこへ行ける。
 	## _worm_head == null だけで見ると、弓を取る前（まだ蟲が出ていない）でも
@@ -456,6 +462,7 @@ func _defeated() -> void:
 	_rest_hero()   ## 「疲」のままにしない
 	_shoot_was_down = false
 	_charge = 0.0
+	_await_release = false
 	_clear_poisons()
 	start_scene1()
 	## start_scene1 のあとに置き直す。
@@ -554,6 +561,14 @@ func _follow_bow() -> void:
 ## 引き絞りは演出を待たず毎フレーム進めるので、太くなっていく様子が見える。
 func _update_charge(delta: float) -> void:
 	var down := Input.is_action_pressed("ui_accept")
+
+	## 宝箱を開けた押し下げを引き継がない。離すまでは何もしない。
+	if _await_release:
+		if down:
+			_shoot_was_down = true
+			return
+		_await_release = false
+		_shoot_was_down = false
 
 	if down:
 		## 押している間、少しずつ満ちていく。
